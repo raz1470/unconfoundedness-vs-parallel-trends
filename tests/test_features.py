@@ -137,6 +137,11 @@ class TestDesign:
         with pytest.raises(ValueError, match="index"):
             Design("bad", d.y.iloc[1:], d.d, d.x)
 
+    def test_did_carries_pre_mean(self, wide):
+        d = did_design(wide)
+        assert np.allclose(d.pre, wide[ycols(-4, -1)].mean(axis=1))
+        assert np.allclose(d.y + d.pre, wide[ycols(0, 3)].mean(axis=1))
+
     def test_names(self, wide):
         assert unconf_design(wide).name == "unconf"
         assert did_design(wide).name == "did"
