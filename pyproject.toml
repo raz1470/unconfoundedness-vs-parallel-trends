@@ -1,0 +1,59 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "uvpt"
+version = "0.1.0"
+description = "Simulations and diagnostics for choosing between unconfoundedness and parallel trends"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Ryan O'Sullivan", email = "raz1470@hotmail.co.uk" }]
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=2.0",
+    "pandas>=2.2",
+    "scipy>=1.13",
+    "scikit-learn>=1.5",
+    "lightgbm>=4.3",
+    "doubleml>=0.10",
+    "matplotlib>=3.8",
+]
+
+[project.urls]
+Repository = "https://github.com/raz1470/unconfoundedness-vs-parallel-trends"
+
+[dependency-groups]
+# `test` is the lean slice CI installs: package deps plus pytest and ruff.
+# `dev` adds Jupyter and statsmodels for the notebook and calibration tools.
+test = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.6",
+]
+dev = [
+    "ipykernel>=6.0",
+    "jupyter>=1.0",
+    "nbconvert>=7.0",
+    "statsmodels>=0.14",
+    { include-group = "test" },
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/uvpt"]
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+# Notebooks are narrative: imports sit next to the cell that uses them.
+"notebooks/*.ipynb" = ["E501", "E402", "I001", "F401", "N806"]
+# Research scripts kept as they were run. X is design-matrix notation.
+"tools/**/*.py" = ["N803", "N806", "E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=uvpt --cov-report=term-missing"
