@@ -201,3 +201,36 @@ def plot_estimates(
     ax.grid(axis="x", color=GRID, lw=0.8)
     ax.set_axisbelow(True)
     return ax
+
+
+def plot_mc(
+    results: pd.DataFrame,
+    scenario: str,
+    ax=None,
+    title: str | None = None,
+    order: Sequence[str] | None = None,
+):
+    """Monte Carlo spread of estimates for one scenario.
+
+    Dot is the mean estimate, the thick line the interquartile range and the
+    thin line the 2.5th to 97.5th percentile across replications.
+    """
+    ax = _ax(ax)
+    r = results[results["scenario"] == scenario]
+    methods = order or list(dict.fromkeys(r["method"]))
+    methods = [m for m in methods if m in set(r["method"])][::-1]
+    for i, m in enumerate(methods):
+        e = r.loc[r["method"] == m, "estimate"]
+        q = e.quantile([0.025, 0.25, 0.75, 0.975]).to_numpy()
+        ax.hlines(i, q[0], q[3], color=INK, lw=1)
+        ax.hlines(i, q[1], q[2], color=INK, lw=4)
+        ax.scatter(e.mean(), i, color=TREATED, s=40, zorder=3)
+    truth = r["truth"].mean()
+    ax.axvline(truth, color=TREATED, lw=1.5, ls="--")
+    ax.set_yticks(range(len(methods)), methods)
+    ax.set_xlabel("ATT estimate")
+    if title:
+        ax.set_title(title)
+    ax.grid(axis="x", color=GRID, lw=0.8)
+    ax.set_axisbelow(True)
+    return ax
