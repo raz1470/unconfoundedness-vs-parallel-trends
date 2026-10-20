@@ -9,6 +9,7 @@ from uvpt import scenario_config, simulate
 from uvpt.diagnostics import (
     att_weights,
     balance_table,
+    diagnose,
     event_time_gaps,
     event_time_means,
     fit_propensity,
@@ -142,6 +143,18 @@ class TestPretrend:
     def test_reference_window_is_zero_on_average(self, wide_a):
         g = pretrend_event_time(wide_a)["gaps"].set_index("event_time")
         assert g.loc[-8:-5, "gap"].mean() == pytest.approx(0, abs=1e-10)
+
+
+class TestDiagnose:
+    def test_b_points_to_did(self, wide_b):
+        out = diagnose(wide_b)
+        assert (out["pretrend_flag"], out["placebo_flag"]) == (False, True)
+        assert "prefer DiD" in out["reading"]
+
+    def test_c_points_to_bounds(self, wide_c):
+        out = diagnose(wide_c)
+        assert out["pretrend_flag"]
+        assert "bounds" in out["reading"]
 
 
 class TestSensitivity:
