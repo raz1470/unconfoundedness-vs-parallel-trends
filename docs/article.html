@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Unconfoundedness vs Parallel Trends by Ryan O'Sullivan</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --treated: #eb6834;
+  --control: #2a78d6;
+  --aqua:    #1baf7a;
+  --text:    #111827;
+  --muted:   #6b7280;
+  --light:   #d1d5db;
+  --border:  #e5e7eb;
+  --bg:      #f9fafb;
+  --w:       700px;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  color: var(--text);
+  background: #fff;
+  line-height: 1.7;
+  font-size: 17px;
+}
+
+.hdr {
+  background: var(--text);
+  color: #fff;
+  padding: 3.5rem 1.5rem 3rem;
+  text-align: center;
+}
+h1 {
+  font-size: clamp(1.8rem, 5.5vw, 2.5rem);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -.025em;
+  margin-bottom: .8rem;
+}
+.tagline { color: #cbd5e1; font-size: 1.1rem; max-width: 580px; margin: 0 auto; }
+.byline { color: #94a3b8; font-size: .85rem; margin-top: 1rem; }
+.hdr p { margin-left: auto; margin-right: auto; }
+
+.snav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: #fff;
+  max-width: var(--w);
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  overflow-x: auto;
+}
+.snav a {
+  flex-shrink: 0;
+  padding: .75rem 0;
+  margin-right: 1.6rem;
+  text-decoration: none;
+  font-size: .82rem;
+  font-weight: 500;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+}
+.snav a:hover { color: var(--text); border-bottom-color: var(--light); }
+.snav a.active { color: var(--text); border-bottom-color: var(--text); }
+
+main { max-width: var(--w); margin: 0 auto; padding: 2.5rem 1.5rem 4rem; }
+
+p { margin-bottom: 1.1rem; max-width: 64ch; font-size: 1.03rem; }
+a { color: var(--control); }
+
+ul.pts { margin: 0 0 1.4rem; padding: 0; list-style: none; max-width: 64ch; }
+ul.pts li {
+  position: relative;
+  padding: .25rem 0 .25rem 1.15rem;
+  margin-bottom: .3rem;
+  font-size: 1.03rem;
+  line-height: 1.65;
+}
+ul.pts li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: .95rem;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+section { margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border); }
+.s-label { font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: .4rem; }
+h2 { font-size: 1.4rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.25; margin-bottom: 1rem; }
+h3 { font-size: 1.1rem; font-weight: 700; line-height: 1.3; margin: 2.25rem 0 .5rem; }
+
+.eqn {
+  margin: 1.25rem 0;
+  padding: .9rem 1rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  text-align: center;
+  font-family: 'Iowan Old Style', Georgia, serif;
+  font-size: 1.1rem;
+}
+.eqn sub { font-size: .7em; }
+
+.fig { margin: 1.75rem 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.fig-hdr { padding: .75rem 1.1rem; background: var(--bg); border-bottom: 1px solid var(--border); }
+.fig-title { font-size: .95rem; font-weight: 700; }
+.fig-sub { font-size: .8rem; color: var(--muted); margin-top: .15rem; }
+.fig-body { padding: 1rem 1.1rem .4rem; }
+.fig-cap { padding: .6rem 1.1rem .95rem; font-size: .825rem; color: var(--muted); line-height: 1.55; max-width: none; margin: 0; }
+svg.chart { display: block; width: 100%; height: auto; }
+
+.panels { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem 1rem; }
+@media (max-width: 599px) { .panels { grid-template-columns: 1fr; } }
+.panel-title { font-size: .8rem; font-weight: 700; margin-bottom: .1rem; }
+.panel-sub { font-size: .74rem; color: var(--muted); }
+
+.legend { display: flex; flex-wrap: wrap; gap: .5rem 1rem; padding: 0 0 .5rem; font-size: .78rem; }
+.li { display: flex; align-items: center; gap: .35rem; }
+
+.tabs { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .7rem; }
+.tabs button {
+  font: inherit;
+  font-size: .78rem;
+  padding: .3rem .7rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--muted);
+  cursor: pointer;
+}
+.tabs button.on { background: var(--text); color: #fff; border-color: var(--text); }
+
+.callout {
+  border-left: 3px solid var(--text);
+  padding: 1rem 1.4rem;
+  margin: 1.75rem 0;
+  background: var(--bg);
+  border-radius: 0 6px 6px 0;
+}
+.callout p { margin: 0; font-size: 1.05rem; font-weight: 600; color: #1f2937; max-width: none; }
+
+.knums { display: grid; grid-template-columns: repeat(3, 1fr); gap: .75rem; margin: 1.75rem 0 .5rem; }
+@media (max-width: 520px) { .knums { grid-template-columns: 1fr; } }
+.kbox { border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.1rem; background: var(--bg); text-align: center; }
+.kbox .lbl { font-size: .68rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-bottom: .3rem; }
+.kbox .num { font-size: 1.75rem; font-weight: 800; line-height: 1; margin-bottom: .3rem; }
+.kbox .lab { font-size: .74rem; color: var(--muted); line-height: 1.4; }
+
+.dtable-wrap { overflow-x: auto; margin: 1.5rem 0; }
+table.dtable { border-collapse: collapse; width: 100%; font-size: .86rem; }
+.dtable caption { text-align: left; font-size: .8rem; color: var(--muted); padding-bottom: .4rem; }
+.dtable th, .dtable td { padding: .45rem .6rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.dtable th { font-weight: 700; background: var(--bg); }
+.dtable td.num, .dtable th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.dtable td.bad { color: #b42318; font-weight: 600; }
+.dtable td.good { color: #067647; font-weight: 600; }
+
+details.faq { border-bottom: 1px solid var(--border); padding: .8rem 0; }
+details.faq summary { font-weight: 600; cursor: pointer; list-style: none; position: relative; padding-right: 1.5rem; }
+details.faq summary::-webkit-details-marker { display: none; }
+details.faq summary::after { content: "+"; position: absolute; right: 0; color: var(--muted); }
+details.faq[open] summary::after { content: "–"; }
+details.faq p { margin: .7rem 0 0; }
+
+code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .88em; background: var(--bg); padding: .05rem .3rem; border-radius: 4px; }
+pre { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: .9rem 1rem; overflow-x: auto; font-size: .82rem; line-height: 1.55; margin: 1rem 0 1.4rem; }
+pre code { background: none; padding: 0; }
+
+.refs { font-size: .85rem; color: var(--muted); }
+.refs li { margin-bottom: .4rem; }
+footer { max-width: var(--w); margin: 0 auto; padding: 1.5rem; border-top: 1px solid var(--border); font-size: .8rem; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header class="hdr">
+  <h1>Unconfoundedness vs Parallel Trends</h1>
+  <p class="tagline">Which assumption fits your self-selected treatment? Two analysts, one dataset, two confident answers. The estimator is not why they disagree.</p>
+  <p class="byline">Ryan O'Sullivan · Code and notebook on <a href="https://github.com/raz1470/unconfoundedness-vs-parallel-trends" style="color:#cbd5e1">GitHub</a></p>
+</header>
+
+<nav class="snav">
+  <a href="#pick" class="active">1 · Which would you pick?</a>
+  <a href="#assumptions">2 · Two assumptions</a>
+  <a href="#churn">3 · Churn</a>
+  <a href="#covariates">4 · Covariates</a>
+  <a href="#diagnostic">5 · The diagnostic</a>
+  <a href="#rule">6 · Decision rule</a>
+  <a href="#estimation">7 · Estimation</a>
+  <a href="#results">8 · Results</a>
+  <a href="#faq">Questions</a>
+  <a href="#together">Bringing it together</a>
+</nav>
+
+<main>
+
+<p>Most treatments in product analytics are chosen by the user. Someone turns on a feature, joins a community, starts a free trial of a premium tier. There is no randomisation, so estimating the effect means modelling why some users opted in and others did not.</p>
+
+<p>How analysts approach this usually depends on where they learned causal inference. The machine learning route runs through <a href="https://matheusfacure.github.io/python-causality-handbook/" target="_blank" rel="noopener">Causal Inference for the Brave and True</a> and libraries like <a href="https://github.com/py-why/EconML" target="_blank" rel="noopener">EconML</a>, <a href="https://github.com/uber/causalml" target="_blank" rel="noopener">CausalML</a> and <a href="https://docs.doubleml.org/" target="_blank" rel="noopener">DoubleML</a>, and tends to end at double machine learning with a rich set of pre-treatment features. The econometrics route runs through <a href="https://mixtape.scunning.com/" target="_blank" rel="noopener">The Mixtape</a> and event studies, and tends to end at difference-in-differences.</p>
+
+<p>Both are reasonable, and both can be estimated with the same doubly robust machinery. That is the point this article is built around. The estimator and the identifying assumption are separate choices, and it is the assumption that decides whether the answer is right. This simulation study shows when each assumption fails, and gives a diagnostic for telling them apart in your own data.</p>
+
+<!-- 1 -->
+<section id="pick">
+  <p class="s-label">1 · Setup</p>
+  <h2>Which would you pick?</h2>
+
+  <p>A product team ships an opt-in feature. Users choose whether to turn it on. The team wants the effect on weekly engagement among the users who turned it on: the average treatment effect on the treated, or ATT.</p>
+
+  <p>Two analysts get the same data: 10,000 users, eight weeks of engagement before each user's decision and four weeks after.</p>
+
+  <ul class="pts">
+    <li><strong>Analyst A</strong> conditions on each user's last eight weeks of engagement plus their account characteristics, and fits a doubly robust DML model. Treated and control users with the same history should have had the same future without the feature.</li>
+    <li><strong>Analyst B</strong> runs a conditional difference-in-differences, also estimated with DML. Treated and control users with the same characteristics should have followed the same trend without the feature.</li>
+  </ul>
+
+  <div class="fig">
+    <div class="fig-hdr">
+      <div class="fig-title">Two estimates of the same effect</div>
+      <div class="fig-sub">ATT on weekly engagement with 95% confidence intervals. Dashed: the true effect.</div>
+    </div>
+    <div class="fig-body">
+      <svg class="chart" id="chartHook"></svg>
+    </div>
+    <p class="fig-cap">Both analysts used cross-fitted, doubly robust estimators with gradient boosted nuisance models. The intervals do not overlap.</p>
+  </div>
+
+  <p>Both estimates look precise and neither interval overlaps the other. Because the data is simulated, the true effect is known: <span data-v="single.c.truth" data-f="2"></span>. Analyst A is right and Analyst B overstates the effect by about half. In a different dataset, built in the same way but with a different reason for opting in, the ranking flips.</p>
+
+  <p>Neither analyst made a technical mistake. They made different assumptions about why users opted in, and only one of those assumptions holds here.</p>
+</section>
+
+<!-- 2 -->
+<section id="assumptions">
+  <p class="s-label">2 · Two assumptions</p>
+  <h2>Two assumptions, two failure modes</h2>
+
+  <p>A useful way to see the difference is to write the post-period outcome as a function of the pre-period outcome:</p>
+
+  <div class="eqn">Y<sub>post</sub> = α + τD + β Y<sub>pre</sub> + γ′X + ε</div>
+
+  <p>Here D is the treatment, τ the effect and X the observed covariates.</p>
+
+  <ul class="pts">
+    <li><strong>Difference-in-differences fixes β = 1.</strong> It subtracts each user's whole pre-period level, so anything that is stable within a user cancels out.</li>
+    <li><strong>Unconfoundedness lets the data estimate β.</strong> If engagement is partly transient, β is below 1 and only part of an unusually low pre-period carries forward.</li>
+  </ul>
+
+  <p>Each design breaks where its β is wrong. That gives two failure modes.</p>
+
+  <h3>Failure mode 1: a stable trait you cannot see</h3>
+
+  <p>Some users are simply more engaged than others, week after week, for reasons that are not in your data. If those users are also more (or less) likely to opt in, that trait confounds the comparison.</p>
+
+  <p>DiD handles this. A trait that adds the same amount to every week disappears when you subtract the pre-period. Unconfoundedness only handles it as well as the lagged outcomes reveal the trait. Eight noisy weeks are an imperfect proxy, so some of the trait's influence remains and biases the estimate.</p>
+
+  <h3>Failure mode 2: selection on a temporary dip</h3>
+
+  <p>Users often reach for a feature when something has just gone wrong. A user who had a bad few weeks is more likely to try something new, and would have recovered anyway. Ashenfelter documented this in 1978 for job training: trainees' earnings fall just before they enrol, and recover afterwards whether the training worked or not.</p>
+
+  <p>Here the dip is in the data. Unconfoundedness compares dipped treated users with controls who dipped the same way, and both groups recover. DiD subtracts a pre-period depressed by the dip, so the recovery shows up as an effect. This is where Analyst B went wrong.</p>
+
+  <h3>The simulation</h3>
+
+  <p>To test this we need data where the true effect is known. The simulation builds a weekly panel of 10,000 users. Each user's engagement has four parts: a level set by observed covariates and a hidden stable trait; a trend that depends on the observed covariates; shared seasonality; and a transitory shock that decays by 20% a week. Every user gets a candidate week. Treated users opt in that week, and controls are users who were eligible that week and did not.</p>
+
+  <p>The treatment adds exactly 2.0 to weekly engagement. Both potential outcomes are simulated for every user, so the true ATT is known. What changes between scenarios is why users opt in. In every scenario, users with lower engagement are more likely to opt in.</p>
+
+  <div class="dtable-wrap">
+    <table class="dtable">
+      <caption>The four selection scenarios</caption>
+      <thead><tr><th>Scenario</th><th>Users opt in based on</th><th>Unconfoundedness</th><th>Parallel trends</th></tr></thead>
+      <tbody>
+        <tr><td>a. Observables only</td><td>observed covariates</td><td class="good">holds</td><td class="good">holds</td></tr>
+        <tr><td>b. Stable trait</td><td>covariates and the hidden trait</td><td class="bad">fails</td><td class="good">holds</td></tr>
+        <tr><td>c. Transitory dip</td><td>covariates and engagement over the last three weeks</td><td class="good">holds</td><td class="bad">fails</td></tr>
+        <tr><td>d. Both</td><td>all of the above</td><td class="bad">fails</td><td class="bad">fails</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="fig">
+    <div class="fig-hdr">
+      <div class="fig-title">Raw mean engagement around the opt-in week</div>
+      <div class="fig-sub">Treated and control, event time in weeks, 95% bands</div>
+    </div>
+    <div class="fig-body">
+      <div class="tabs" data-chart="means"></div>
+      <svg class="chart" id="chartMeans"></svg>
+    </div>
+    <p class="fig-cap">Week 0 is the week the treated users opted in. In b the treated sit lower throughout but move in parallel with controls. In c and d they dip into the opt-in week.</p>
+  </div>
+
+  <p>The next chart is the clearest way to see what each design assumes. For the treated users it shows what actually happened, what would have happened without the feature (known here because the data is simulated), and the counterfactual each design implies. The gap between the treated line and a counterfactual after week 0 is that design's estimate.</p>
+
+  <div class="fig">
+    <div class="fig-hdr">
+      <div class="fig-title">What would the treated users have done without the feature?</div>
+      <div class="fig-sub">Treated users only: actual, true counterfactual and each design's implied counterfactual</div>
+    </div>
+    <div class="fig-body">
+      <div class="tabs" data-chart="cf"></div>
+      <div class="legend">
+        <span class="li"><svg width="20" height="4"><line x1="0" y1="2" x2="20" y2="2" stroke="#eb6834" stroke-width="2.5"/></svg>Treated, actual</span>
+        <span class="li"><svg width="20" height="4"><line x1="0" y1="2" x2="20" y2="2" stroke="#111827" stroke-width="2" stroke-dasharray="4 3"/></svg>True counterfactual</span>
+        <span class="li"><svg width="20" height="4"><line x1="0" y1="2" x2="20" y2="2" stroke="#2a78d6" stroke-width="2.5"/></svg>Unconfoundedness</span>
+        <span class="li"><svg width="20" height="4"><line x1="0" y1="2" x2="20" y2="2" stroke="#1baf7a" stroke-width="2.5"/></svg>DiD</span>
+      </div>
+      <svg class="chart" id="chartCF"></svg>
+    </div>
+    <p class="fig-cap"><span id="cfCap"></span> The DiD line starts at week -4: it is the treated users' average over weeks -4 to -1 plus the change seen in weighted controls.</p>
+  </div>
+
+  <p>In scenario c the DiD line stays down at the depressed pre-period level, while the true counterfactual climbs back as the dip wears off. In scenario b the unconfoundedness line sits too high: it borrows controls who looked similar over eight weeks but had more of the hidden trait.</p>
+</section>
+
+<!-- 3 -->
+<section id="churn">
+  <p class="s-label">3 · An aside</p>
+  <h2>Why "just switch to DiD" fails for churn</h2>
+
+  <p>A common reaction to the stable trait problem is to use DiD whenever selection is a worry. For churn, one of the most common outcomes in product work, that does not work.</p>
+
+  <p>Churn is absorbing: once a user churns, they stay churned. To be offered a feature, a user has to be active. So among everyone in the analysis, treated or control, churn before the opt-in week is zero by construction.</p>
+
+  <ul class="pts">
+    <li><strong>There is no pre-trend to check.</strong> Both groups sit flat at zero before week 0, which says nothing about whether their trends would have matched.</li>
+    <li><strong>The DiD collapses.</strong> Subtracting zero from both groups leaves a plain comparison of post-period churn rates, which is the naive estimate.</li>
+    <li><strong>The sample is filtered on survival.</strong> Users who would have churned before their candidate week never enter either group. If opting in depends on recent engagement, that filter treats the groups differently.</li>
+  </ul>
+
+  <p>For churn, the identification has to come from conditioning on the history: unconfoundedness with lagged engagement as covariates, or a survival model with time-varying covariates. The rest of this article uses weekly engagement, which is not absorbing, so both designs can be compared on the same data.</p>
+</section>
+
+<!-- 4 -->
+<section id="covariates">
+  <p class="s-label">4 · Covariates</p>
+  <h2>Lagged outcomes vs DiD covariate rules</h2>
+
+  <p>The two designs need different covariates, and mixing them up quietly changes the assumption.</p>
+
+  <ul class="pts">
+    <li><strong>Unconfoundedness:</strong> condition on the outcome history. Here that is engagement in each of the eight weeks before opt-in, its slope and the most recent change, plus the non-outcome covariates.</li>
+    <li><strong>DiD:</strong> use non-outcome covariates measured before the pre-period. Do not add outcome lags from the pre-period.</li>
+  </ul>
+
+  <p>The second rule surprises people. Adding a few early lags to a DiD feels like a harmless robustness check. <a href="https://pubmed.ncbi.nlm.nih.gov/29957834/" target="_blank" rel="noopener">Daw and Hatfield (2018)</a> showed it is not: when treated and control groups differ in level, matching them on pre-period outcomes pairs each treated user with controls whose outcomes were temporarily unusual, and those controls then regress to their own mean.</p>
+
+  <p>To measure the cost, the study includes a third design, DiD with lags: the DiD from above with engagement at weeks -8 to -5 added as covariates.</p>
+
+  <div class="fig">
+    <div class="fig-hdr">
+      <div class="fig-title">Adding lags to DiD changes the assumption</div>
+      <div class="fig-sub">Mean bias over the Monte Carlo replications, true effect 2.0</div>
+    </div>
+    <div class="fig-body">
+      <div class="legend">
+        <span class="li"><svg width="10" height="10"><circle cx="5" cy="5" r="4.5" fill="#2a78d6"/></svg>Unconfoundedness</span>
+        <span class="li"><svg width="10" height="10"><circle cx="5" cy="5" r="4.5" fill="#1baf7a"/></svg>DiD</span>
+        <span class="li"><svg width="10" height="10"><circle cx="5" cy="5" r="4.5" fill="#111827"/></svg>DiD with lags</span>
+      </div>
+      <svg class="chart" id="chartLags"></svg>
+    </div>
+    <p class="fig-cap">Bias is the mean estimate minus the true effect. Zero is unbiased.</p>
+  </div>
+
+  <p>In scenario b, where parallel trends holds, adding the lags makes DiD about as biased as the unconfoundedness design (<span data-v="mc.methods.b.did_lags.bias" data-f="s2"></span> against <span data-v="mc.methods.b.did.bias" data-f="s2"></span> without them). In scenario c the lags help, because they carry part of the dip, but they do not remove the bias. Adding lags is a different design, not a robustness check, and whether it helps depends on a selection mechanism you cannot see.</p>
+</section>
+
+<!-- 5 -->
+<section id="diagnostic">
+  <p class="s-label">5 · The diagnostic</p>
+  <h2>Event-time plots: balance vs placebo</h2>
+
+  <p>If the two designs fail in different situations, the useful question is which situation you are in. The pre-period is the only place to look, since nothing has been treated there yet. It has to be used carefully.</p>
+
+  <h3>Balance is mechanical</h3>
+
+  <p>The usual first check after weighting is covariate balance. Fit a propensity model on the history through week -1, weight the controls, and confirm the treated and weighted control groups look alike.</p>
+
+  <div class="fig">
+    <div class="fig-hdr">
+      <div class="fig-title">Balance after weighting, scenario c</div>
+      <div class="fig-sub">Standardised mean difference, treated minus control</div>
+    </div>
+    <div class="fig-body">
+      <div class="legend">
+        <span class="li"><svg width="10" height="10"><circle cx="5" cy="5" r="4.5" fill="#9ca3af"/></svg>Raw</span>
+        <span class="li"><svg width="10" height="10"><circle cx="5" cy="5" r="4.5" fill="#eb6834"/></svg>Weighted</span>
+      </div>
+      <svg class="chart" id="chartBalance"></svg>
+    </div>
+    <p class="fig-cap">Dotted lines mark ±0.1, a common threshold for acceptable balance.</p>
+  </div>
+
+  <p>It always passes. The weights were fitted to balance exactly these features, so balance on them tests nothing. The same chart looks as good in scenario b, where the design is biased. A real check has to look at something the propensity model did not see.</p>
+
+  <h3>The DiD check: pre-trends</h3>
+
+  <p>For DiD, the assumption is about trends, so test the trend before week 0. Weight controls on the non-outcome covariates only, as the DiD design does, and express each user's engagement relative to their own average over weeks -8 to -5. That removes stable level differences. Under parallel trends the gap between treated and control should be flat at zero over weeks -4 to -1.</p>
+
+  <div class="fig">
+    <div class="fig-hdr">
+      <div class="fig-title">DiD check: gap in change since weeks -8 to -5</div>
+      <div class="fig-sub">Treated minus covariate-weighted control, 95% bands. Grey: weeks -4 to -1. Orange: post-period.</div>
+    </div>
+    <div class="fig-body"><div class="panels" id="panelsPretrend"></div></div>
+    <p class="fig-cap">The largest |z| across weeks -4 to -1 is shown under each panel. The check flags above 2.5.</p>
+  </div>
+
+  <p>Flat in a and b, a clear dip in c and d. Parallel trends fails exactly where DiD was biased.</p>
+
+  <h3>The unconfoundedness check: a placebo on the history</h3>
+
+  <p>For unconfoundedness, move the whole design back in time. Fit the propensity model on the history through week -5 only and look at weeks -4 to -1. Nothing has been treated, so any gap means selection on the observed history did not explain who opted in.</p>
+
+  <div class="fig">
+    <div class="fig-hdr">
+      <div class="fig-title">Unconfoundedness check: propensity on history through week -5</div>
+      <div class="fig-sub">Treated minus weighted control, 95% bands</div>
+    </div>
+    <div class="fig-body"><div class="panels" id="panelsPlacebo"></div></div>
+    <p class="fig-cap">In b the gap drifts down slowly. In c and d it drops sharply in the last three weeks.</p>
+  </div>
+
+  <p>In b the gap drifts: matching on four noisy early weeks leaves a trait difference that keeps showing up. That drift is the signature of a hidden stable trait.</p>
+
+  <p>In c the placebo fails too, even though unconfoundedness holds at week 0. Selection in c runs on engagement in weeks -3 to -1, and a placebo that stops at week -5 drops exactly those weeks. So no pre-period check can separate "users opted in after a dip" (c) from "users opted in after a dip and have a lower hidden trait" (d). The data cannot settle it, which is why the decision rule ends with bounds.</p>
+</section>
+
+<!-- 6 -->
+<section id="rule">
+  <p class="s-label">6 · Decision rule</p>
+  <h2>Flat pre-trends, dips and bounds</h2>
+
+  <div class="dtable-wrap">
+    <table class="dtable">
+      <thead><tr><th>DiD pre-trend check</th><th>Unconfoundedness placebo</th><th>What to do</th></tr></thead>
+      <tbody>
+        <tr><td>flat</td><td>flat</td><td>Both designs are plausible and should agree. Report either.</td></tr>
+        <tr><td>flat</td><td>drifts</td><td>A stable hidden trait. Use DiD.</td></tr>
+        <tr><td>dips</td><td>flat or dips</td><td>Parallel trends fails. Use unconfoundedness with lags, and report DiD as the other bound.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>The last row needs a word of explanation. When pre-trends dip, DiD is biased, so unconfoundedness is the better bet. But the dip also means you cannot rule out a stable trait on top of it, because the placebo cannot tell c from d. <a href="https://arxiv.org/abs/1903.06286" target="_blank" rel="noopener">Ding and Li (2019)</a>, building on Angrist and Pischke, show that under conditions like these the two estimates bracket the truth: with negative selection, unconfoundedness errs low and DiD errs high. Reporting both gives a range that holds whichever of c or d you are in.</p>
+
+  <div class="callout"><p>Pick the design from the pre-period data, not from the textbook you learned on. When the data cannot decide, report both estimates as bounds.</p></div>
+
+  <p>The repo wraps both checks in one function. On your own panel:</p>
+
+<pre><code>from uvpt.diagnostics import diagnose
+from uvpt.features import to_wide
+
+wide = to_wide(panel, user="user_id", time="event_time", treated="treated",
+               outcome="sessions", covariates=["tenure", "platform"], week="week")
+out = diagnose(wide)
+print(out["reading"])</code></pre>
+
+  <div class="dtable-wrap">
+    <table class="dtable" id="tableDiagnose">
+      <caption>What diagnose returns on one simulated dataset per scenario</caption>
+    </table>
+  </div>
+</section>
+
+<!-- 7 -->
+<section id="estimation">
+  <p class="s-label">7 · Estimation</p>
+  <h2>DML for either design</h2>
+
+  <p>Both designs in this study use the same estimation machinery, and that is deliberate.</p>
+
+  <ul class="pts">
+    <li><strong>Unconfoundedness:</strong> <code>DoubleMLIRM</code> with the ATT score. The outcome is mean engagement in weeks 0 to 3.</li>
+    <li><strong>DiD:</strong> <code>DoubleMLDIDBinary</code> on a two-period panel of the pre-period mean (weeks -4 to -1) and the post-period mean (weeks 0 to 3). This is the doubly robust DiD of <a href="https://arxiv.org/abs/1812.01723" target="_blank" rel="noopener">Sant'Anna and Zhao (2020)</a>.</li>
+  </ul>
+
+  <p>Both use <a href="https://arxiv.org/abs/1608.00060" target="_blank" rel="noopener">double machine learning</a> with LightGBM for the outcome and propensity models, five-fold cross-fitting and propensities clipped at 0.01. Cross-fitting stops the flexible models from overfitting into the estimate, and the doubly robust score keeps the estimate consistent if either nuisance model is right.</p>
+
+  <p>None of that protects against a wrong assumption. A doubly robust estimator is robust to misspecifying the nuisance models, not to the design being wrong. In scenario c, Analyst B's DiD had well-fitted nuisance models and was still off by half.</p>
+
+  <h3>Overlap</h3>
+
+  <p>The ATT weights each control by p/(1-p), so controls who look like typical treated users carry a lot of weight. When selection is strong, a few controls can dominate. In scenario d the effective sample size of the control weights for the unconfoundedness design falls to about 700 out of 8,000 controls. Nothing needed clipping here, but it is worth checking on real data before trusting the interval.</p>
+
+  <h3>Sensitivity analysis does not choose the design</h3>
+
+  <p>DoubleML includes the <a href="https://arxiv.org/abs/2112.13398" target="_blank" rel="noopener">omitted variable bias bounds of Chernozhukov et al.</a>, which ask how strong a hidden confounder would need to be to move the estimate. These are worth reporting. They do not tell you which design to trust. In scenario c the biased DiD estimate has a robustness value of 0.25, higher than the valid unconfoundedness estimate at 0.19. Sensitivity analysis measures how fragile an estimate is to unobserved confounding. It cannot see a broken parallel trends assumption. The pre-period checks can.</p>
+</section>
+
+<!-- 8 -->
+<section id="results">
+  <p class="s-label">8 · Results</p>
+  <h2>Simulation results</h2>
+
+  <p>A single dataset can be lucky. To separate bias from noise, each scenario was simulated <span data-v="mc.reps.a"></span> times with 10,000 users, and every design was estimated on every replication.</p>
+
+  <div class="knums">
+    <div class="kbox"><div class="lbl">DiD bias, scenario c</div><div class="num" data-v="mc.methods.c.did.bias" data-f="s2"></div><div class="lab">on a true effect of 2.0</div></div>
+    <div class="kbox"><div class="lbl">Unconfoundedness bias, scenario b</div><div class="num" data-v="mc.methods.b.unconf.bias" data-f="s2"></div><div class="lab">on a true effect of 2.0</div></div>
+    <div class="kbox"><div class="lbl">Truth bracketed, scenario d</div><div class="num" data-v="mc.bracket_d" data-f="pct"></div><div class="lab">of replications</div></div>
+  </div>
+
+  <div class="fig">
+    <div class="fig-hdr">
+      <div class="fig-title">Estimates across replications</div>
+      <div class="fig-sub">Dot: mean. Thick bar: middle 50%. Thin bar: middle 95%. Dashed: true effect.</div>
+    </div>
+    <div class="fig-body"><div class="panels" id="panelsMC"></div></div>
+    <p class="fig-cap">The naive comparison is left off the chart: its bias runs from <span data-v="mc.methods.a.naive_unconf.bias" data-f="s2"></span> to <span data-v="mc.methods.d.naive_unconf.bias" data-f="s2"></span> and is in the table below.</p>
+  </div>
+
+  <div class="dtable-wrap">
+    <table class="dtable" id="tableMC">
+      <caption>Bias, RMSE and 95% interval coverage by design and scenario</caption>
+    </table>
+  </div>
+
+  <p>The results line up with the table in section 2. Each design is unbiased with close to nominal coverage where its assumption holds, and badly biased where it does not. A biased design does not just miss: its intervals stay narrow, so coverage collapses. An analyst would see a confident wrong answer, not a vague one.</p>
+
+  <p>In scenario d both designs are biased in opposite directions, and the truth sits between them in <span data-v="mc.bracket_d" data-f="pct"></span> of replications.</p>
+
+  <h3>How often the checks get it right</h3>
+
+  <div class="dtable-wrap">
+    <table class="dtable" id="tableReject">
+      <caption>Share of replications where each check flags a problem</caption>
+    </table>
+  </div>
+
+  <p>The DiD pre-trend check flagged every replication of c and d, and 3% of a and b, inside its nominal 5% false alarm rate. The unconfoundedness placebo flagged every replication of b, c and d. On its own it says something is wrong without saying what, which is why it is read together with the pre-trend check.</p>
+</section>
+
+<!-- FAQ -->
+<section id="faq">
+  <p class="s-label">Questions</p>
+  <h2>Frequently asked questions</h2>
+
+  <details class="faq"><summary>Why not include every covariate in both designs, just to be safe?</summary>
+    <p>Because covariates are part of the assumption. Outcome lags make unconfoundedness plausible, and the same lags break DiD when the groups differ in level. Section 4 shows DiD with lags is as biased as unconfoundedness in scenario b.</p>
+  </details>
+
+  <details class="faq"><summary>Does the choice of machine learning model matter?</summary>
+    <p>Much less than the design. Swapping LightGBM for scikit-learn's HistGradientBoosting moves the estimates in scenarios b and c by at most 0.05, against design biases of 0.7 to 1.0. The flexible models matter for getting the nuisance functions right, and they cannot fix an assumption that does not hold.</p>
+  </details>
+
+  <details class="faq"><summary>What if users opt in at different times?</summary>
+    <p>They do here: every user has their own index week, and controls are aligned to the week they were eligible. With staggered adoption and a shared calendar, use an estimator built for it, such as Callaway and Sant'Anna. The two failure modes and the pre-period checks carry over.</p>
+  </details>
+
+  <details class="faq"><summary>How should controls get an index date?</summary>
+    <p>In this study, each control's index week is the week they were eligible and did not opt in. A common shortcut is to assign controls random dates drawn from the treated calendar. In scenario c that biased the unconfoundedness estimate by about 0.1, because the decision not to opt in was made in a different week from the one being compared.</p>
+  </details>
+
+  <details class="faq"><summary>What if I only have a few weeks of history?</summary>
+    <p>Then neither check has much to work with. With fewer than about six pre-period weeks there is no room for a placebo window and a reference window, and the lags are a weaker proxy for any stable trait. Report both designs and say the data cannot choose between them.</p>
+  </details>
+
+  <details class="faq"><summary>Is synthetic control an alternative?</summary>
+    <p>Synthetic control is built for a few treated units with long histories, such as regions or countries. With thousands of users each opting in at their own time, the designs here are the more natural fit. Its weighting on pre-period outcomes also makes it closer to unconfoundedness in spirit, so it shares that design's weakness to a hidden trait.</p>
+  </details>
+</section>
+
+<!-- Conclusion -->
+<section id="together">
+  <p class="s-label">Bringing it together</p>
+  <h2>The assumption is the decision</h2>
+
+  <p>Analyst A and Analyst B used equally sophisticated estimators. One was right because their assumption matched how users chose to opt in. With different selection, the other would have been.</p>
+
+  <ul class="pts">
+    <li><strong>Separate the estimator from the design.</strong> DML is a way to estimate. Unconfoundedness and parallel trends are what make the estimate mean something.</li>
+    <li><strong>Match the covariates to the design.</strong> Lags belong in unconfoundedness and out of DiD.</li>
+    <li><strong>Test the assumption, not the weights.</strong> Balance is mechanical. Pre-trends and placebos are not.</li>
+    <li><strong>Report bounds when the data cannot choose.</strong> A dip before opt-in rules out DiD, and cannot rule out a hidden trait.</li>
+  </ul>
+
+  <p>The simulator, estimators and diagnostics are in the <a href="https://github.com/raz1470/unconfoundedness-vs-parallel-trends" target="_blank" rel="noopener">companion repo</a>, along with a notebook that reproduces every figure here. The diagnostics take a long panel with your own column names, so the checks in section 5 run on real data unchanged.</p>
+
+  <h3>References</h3>
+  <ul class="refs">
+    <li>Angrist, J. and Pischke, J.-S. (2009). <em>Mostly Harmless Econometrics</em>, section 5.4. Princeton University Press.</li>
+    <li>Ashenfelter, O. (1978). Estimating the effect of training programs on earnings. <em>Review of Economics and Statistics</em>, 60(1).</li>
+    <li>Chernozhukov, V. et al. (2018). <a href="https://arxiv.org/abs/1608.00060" target="_blank" rel="noopener">Double/debiased machine learning for treatment and structural parameters</a>. <em>The Econometrics Journal</em>.</li>
+    <li>Chernozhukov, V. et al. (2022). <a href="https://arxiv.org/abs/2112.13398" target="_blank" rel="noopener">Long story short: omitted variable bias in causal machine learning</a>.</li>
+    <li>Daw, J. and Hatfield, L. (2018). <a href="https://pubmed.ncbi.nlm.nih.gov/29957834/" target="_blank" rel="noopener">Matching and regression to the mean in difference-in-differences analysis</a>. <em>Health Services Research</em>.</li>
+    <li>Ding, P. and Li, F. (2019). <a href="https://arxiv.org/abs/1903.06286" target="_blank" rel="noopener">A bracketing relationship between difference-in-differences and lagged-dependent-variable adjustment</a>. <em>Political Analysis</em>.</li>
+    <li>Sant'Anna, P. and Zhao, J. (2020). <a href="https://arxiv.org/abs/1812.01723" target="_blank" rel="noopener">Doubly robust difference-in-differences estimators</a>. <em>Journal of Econometrics</em>.</li>
+  </ul>
+</section>
+
+</main>
+
+<footer>Simulated data throughout. Every number and chart on this page is generated by <code>tools/article_data.py</code> in the companion repo.</footer>
+
+<script>
+const DATA = /*DATA_START*/{"event_times":[-8,-7,-6,-5,-4,-3,-2,-1,0,1,2,3,4],"single":{"a":{"truth":2.0,"means":{"treated":{"mean":[29.154,29.317,29.327,29.264,29.302,29.297,29.27,29.322,31.378,31.345,31.216,31.115,31.159],"lo":[28.847,29.015,29.023,28.953,28.989,28.988,28.961,29.013,31.065,31.032,30.896,30.8,30.85],"hi":[29.462,29.619,29.631,29.575,29.614,29.605,29.58,29.632,31.692,31.658,31.536,31.431,31.468]},"control":{"mean":[29.738,29.786,29.777,29.828,29.872,29.931,29.974,29.947,29.971,29.908,29.87,29.779,29.781],"lo":[29.587,29.633,29.625,29.676,29.721,29.78,29.823,29.796,29.819,29.757,29.718,29.628,29.63],"hi":[29.889,29.938,29.929,29.981,30.024,30.083,30.125,30.098,30.124,30.06,30.021,29.931,29.932]}},"cf":{"actual":[29.154,29.317,29.327,29.264,29.302,29.297,29.27,29.322,31.378,31.345,31.216,31.115,31.159],"true_y0":[29.154,29.317,29.327,29.264,29.302,29.297,29.27,29.322,29.378,29.345,29.216,29.115,29.159],"unconf_cf":[29.123,29.226,29.242,29.271,29.204,29.201,29.172,29.201,29.252,29.173,29.222,29.124,29.122],"did_cf":[29.0,29.053,29.092,29.195,29.191,29.286,29.352,29.362,29.371,29.27,29.305,29.205,29.198]},"pretrend":{"gap":[-0.026,0.083,0.055,-0.112,-0.07,-0.171,-0.263,-0.221,1.826,1.895,1.73,1.729,1.78],"lo":[-0.176,-0.021,-0.052,-0.261,-0.278,-0.413,-0.536,-0.51,1.518,1.578,1.396,1.387,1.432],"hi":[0.123,0.188,0.161,0.038,0.137,0.072,0.01,0.069,2.135,2.211,2.064,2.072,2.128]},"placebo":{"gap":[0.031,0.092,0.098,0.025,0.076,-0.027,-0.118,-0.062,1.992,2.066,1.907,1.906,1.974],"lo":[-0.344,-0.278,-0.272,-0.352,-0.303,-0.402,-0.491,-0.433,1.617,1.693,1.529,1.528,1.601],"hi":[0.406,0.462,0.469,0.402,0.455,0.348,0.255,0.31,2.367,2.439,2.284,2.283,2.347]},"pretrend_z":1.9,"placebo_z":0.6,"flags":[false,false],"n_treated":1929,"n":10000},"b":{"truth":2.0,"means":{"treated":{"mean":[26.414,26.571,26.551,26.58,26.583,26.633,26.628,26.718,28.697,28.68,28.542,28.464,28.555],"lo":[26.121,26.275,26.258,26.286,26.29,26.342,26.334,26.42,28.394,28.38,28.234,28.157,28.253],"hi":[26.707,26.866,26.844,26.874,26.877,26.925,26.923,27.016,29.0,28.981,28.849,28.771,28.857]},"control":{"mean":[30.418,30.466,30.465,30.494,30.547,30.592,30.631,30.594,30.636,30.569,30.534,30.438,30.427],"lo":[30.27,30.317,30.316,30.344,30.398,30.444,30.483,30.446,30.487,30.421,30.385,30.29,30.28],"hi":[30.565,30.615,30.614,30.644,30.696,30.741,30.778,30.741,30.785,30.717,30.682,30.585,30.574]}},"cf":{"actual":[26.414,26.571,26.551,26.58,26.583,26.633,26.628,26.718,28.697,28.68,28.542,28.464,28.555],"true_y0":[26.414,26.571,26.551,26.58,26.583,26.633,26.628,26.718,26.697,26.68,26.542,26.464,26.555],"unconf_cf":[26.458,26.543,26.544,26.535,26.513,26.562,26.625,26.727,27.007,27.199,27.496,27.628,27.745],"did_cf":[26.267,26.371,26.419,26.478,26.542,26.628,26.702,26.693,26.704,26.568,26.592,26.483,26.464]},"pretrend":{"gap":[0.002,0.054,-0.013,-0.043,-0.103,-0.139,-0.219,-0.12,1.848,1.967,1.805,1.836,1.946],"lo":[-0.141,-0.049,-0.115,-0.186,-0.304,-0.372,-0.483,-0.404,1.547,1.661,1.481,1.504,1.608],"hi":[0.144,0.157,0.09,0.099,0.097,0.093,0.045,0.164,2.15,2.273,2.129,2.168,2.284]},"placebo":{"gap":[0.036,0.102,0.084,0.051,-0.403,-0.807,-1.175,-1.262,0.63,0.573,0.3,0.259,0.304],"lo":[-0.343,-0.282,-0.294,-0.332,-0.784,-1.179,-1.546,-1.634,0.251,0.195,-0.082,-0.119,-0.071],"hi":[0.415,0.486,0.463,0.434,-0.023,-0.435,-0.803,-0.891,1.01,0.95,0.682,0.638,0.679]},"pretrend_z":1.6,"placebo_z":6.7,"flags":[false,true],"n_treated":1979,"n":10000},"c":{"truth":2.0,"means":{"treated":{"mean":[26.33,26.281,26.13,25.844,25.536,25.166,24.996,25.19,27.626,27.999,28.154,28.258,28.431],"lo":[26.041,25.99,25.838,25.557,25.253,24.89,24.721,24.914,27.338,27.712,27.859,27.961,28.138],"hi":[26.619,26.572,26.422,26.131,25.819,25.441,25.272,25.466,27.914,28.285,28.45,28.555,28.724]},"control":{"mean":[30.454,30.554,30.586,30.694,30.826,30.977,31.057,30.993,30.921,30.756,30.647,30.505,30.473],"lo":[30.307,30.406,30.438,30.547,30.679,30.833,30.914,30.849,30.774,30.608,30.498,30.357,30.325],"hi":[30.602,30.702,30.733,30.842,30.972,31.121,31.2,31.137,31.068,30.903,30.795,30.653,30.621]}},"cf":{"actual":[26.33,26.281,26.13,25.844,25.536,25.166,24.996,25.19,27.626,27.999,28.154,28.258,28.431],"true_y0":[26.33,26.281,26.13,25.844,25.536,25.166,24.996,25.19,25.626,25.999,26.154,26.258,26.431],"unconf_cf":[26.246,26.254,26.096,25.725,25.365,25.061,24.86,25.062,25.454,25.636,25.957,26.201,26.407],"did_cf":[24.457,24.612,24.705,24.858,25.002,25.213,25.362,25.309,25.185,24.926,24.85,24.699,24.648]},"pretrend":{"gap":[0.385,0.18,-0.063,-0.503,-0.955,-1.536,-1.854,-1.608,0.952,1.584,1.816,2.07,2.294],"lo":[0.236,0.077,-0.169,-0.651,-1.162,-1.776,-2.125,-1.896,0.643,1.266,1.478,1.726,1.945],"hi":[0.534,0.284,0.043,-0.355,-0.748,-1.296,-1.582,-1.32,1.261,1.903,2.154,2.414,2.644]},"placebo":{"gap":[0.025,0.041,0.104,0.069,-0.894,-1.93,-2.604,-2.575,-0.119,0.379,0.503,0.638,0.744],"lo":[-0.37,-0.355,-0.301,-0.339,-1.291,-2.318,-2.98,-2.949,-0.502,-0.008,0.104,0.238,0.353],"hi":[0.419,0.437,0.508,0.477,-0.496,-1.543,-2.228,-2.202,0.263,0.767,0.903,1.037,1.136]},"pretrend_z":13.4,"placebo_z":13.6,"flags":[true,true],"n_treated":2010,"n":10000,"hook":{"unconf":{"estimate":2.127,"ci_low":1.874,"ci_high":2.38},"did":{"estimate":3.064,"ci_low":2.832,"ci_high":3.296}},"balance":{"features":["y_m8","y_m7","y_m6","y_m5","y_m4","y_m3","y_m2","y_m1","slope","recent_change","x1","x2","x3","season_sin","season_cos"],"raw":[-0.618,-0.637,-0.665,-0.729,-0.804,-0.901,-0.944,-0.899,-0.316,-0.3,-0.697,0.286,-0.202,-0.148,0.027],"weighted":[0.013,0.004,0.005,0.018,0.026,0.016,0.021,0.02,0.014,0.013,-0.011,0.048,0.009,0.005,-0.008]}},"d":{"truth":2.0,"means":{"treated":{"mean":[24.721,24.622,24.456,24.204,24.018,23.764,23.751,23.908,26.227,26.526,26.615,26.791,26.948],"lo":[24.453,24.351,24.186,23.938,23.755,23.509,23.499,23.654,25.962,26.26,26.34,26.511,26.673],"hi":[24.989,24.893,24.726,24.47,24.28,24.019,24.004,24.163,26.492,26.792,26.891,27.071,27.224]},"control":{"mean":[30.87,30.983,31.019,31.119,31.22,31.343,31.383,31.328,31.285,31.138,31.045,30.885,30.857],"lo":[30.727,30.839,30.876,30.977,31.079,31.204,31.245,31.189,31.143,30.995,30.901,30.741,30.713],"hi":[31.013,31.126,31.161,31.261,31.361,31.482,31.522,31.468,31.428,31.281,31.189,31.028,31.0]}},"cf":{"actual":[24.721,24.622,24.456,24.204,24.018,23.764,23.751,23.908,26.227,26.526,26.615,26.791,26.948],"true_y0":[24.721,24.622,24.456,24.204,24.018,23.764,23.751,23.908,24.227,24.526,24.615,24.791,24.948],"unconf_cf":[24.683,24.499,24.354,24.077,23.863,23.614,23.606,23.84,24.475,24.793,25.163,25.489,25.746],"did_cf":[23.241,23.382,23.458,23.585,23.687,23.903,23.959,23.894,23.808,23.603,23.532,23.397,23.396]},"pretrend":{"gap":[0.396,0.156,-0.086,-0.466,-0.754,-1.224,-1.292,-1.07,1.335,1.839,1.999,2.31,2.468],"lo":[0.252,0.055,-0.189,-0.609,-0.957,-1.457,-1.557,-1.352,1.039,1.533,1.673,1.974,2.127],"hi":[0.54,0.257,0.017,-0.322,-0.551,-0.991,-1.028,-0.787,1.631,2.144,2.324,2.646,2.809]},"placebo":{"gap":[0.045,0.13,0.113,0.05,-1.148,-2.411,-2.985,-3.124,-0.891,-0.576,-0.573,-0.31,-0.275],"lo":[-0.412,-0.329,-0.346,-0.396,-1.591,-2.819,-3.391,-3.518,-1.284,-0.992,-0.991,-0.721,-0.681],"hi":[0.502,0.59,0.573,0.497,-0.705,-2.002,-2.58,-2.73,-0.498,-0.16,-0.155,0.102,0.131]},"pretrend_z":10.3,"placebo_z":15.5,"flags":[true,true],"n_treated":2024,"n":10000}},"mc":{"reps":{"a":200,"b":200,"c":200,"d":200},"methods":{"a":{"naive_unconf":{"mean":1.391,"q":[1.109,1.288,1.494,1.719],"bias":-0.609,"rmse":0.629,"coverage":0.035,"sd":0.156},"unconf":{"mean":2.007,"q":[1.805,1.951,2.066,2.196],"bias":0.007,"rmse":0.099,"coverage":0.935,"sd":0.1},"did":{"mean":2.003,"q":[1.762,1.916,2.078,2.236],"bias":0.003,"rmse":0.117,"coverage":0.93,"sd":0.117},"did_lags":{"mean":2.004,"q":[1.765,1.927,2.076,2.202],"bias":0.004,"rmse":0.109,"coverage":0.945,"sd":0.11}},"b":{"naive_unconf":{"mean":-1.812,"q":[-2.103,-1.922,-1.708,-1.52],"bias":-3.811,"rmse":3.815,"coverage":0.0,"sd":0.155},"unconf":{"mean":1.298,"q":[1.091,1.238,1.37,1.473],"bias":-0.702,"rmse":0.709,"coverage":0.0,"sd":0.099},"did":{"mean":2.001,"q":[1.758,1.933,2.078,2.199],"bias":0.001,"rmse":0.115,"coverage":0.94,"sd":0.116},"did_lags":{"mean":1.325,"q":[1.086,1.262,1.397,1.504],"bias":-0.675,"rmse":0.684,"coverage":0.0,"sd":0.11}},"c":{"naive_unconf":{"mean":-2.734,"q":[-2.987,-2.82,-2.65,-2.454],"bias":-4.734,"rmse":4.736,"coverage":0.0,"sd":0.147},"unconf":{"mean":1.985,"q":[1.768,1.903,2.055,2.219],"bias":-0.015,"rmse":0.116,"coverage":0.935,"sd":0.116},"did":{"mean":3.011,"q":[2.806,2.946,3.086,3.218],"bias":1.011,"rmse":1.016,"coverage":0.0,"sd":0.103},"did_lags":{"mean":2.235,"q":[2.022,2.155,2.323,2.449],"bias":0.235,"rmse":0.26,"coverage":0.495,"sd":0.111}},"d":{"naive_unconf":{"mean":-4.533,"q":[-4.749,-4.63,-4.445,-4.272],"bias":-6.533,"rmse":6.535,"coverage":0.0,"sd":0.134},"unconf":{"mean":1.27,"q":[0.98,1.181,1.364,1.524],"bias":-0.73,"rmse":0.743,"coverage":0.005,"sd":0.14},"did":{"mean":2.813,"q":[2.592,2.745,2.886,3.026],"bias":0.813,"rmse":0.82,"coverage":0.0,"sd":0.11},"did_lags":{"mean":1.61,"q":[1.364,1.527,1.695,1.822],"bias":-0.39,"rmse":0.41,"coverage":0.13,"sd":0.126}}},"rejection":{"a":{"did_placebo":0.04,"pretrend_gap":0.03,"unconf_placebo":0.03},"b":{"did_placebo":0.03,"pretrend_gap":0.03,"unconf_placebo":1.0},"c":{"did_placebo":1.0,"pretrend_gap":1.0,"unconf_placebo":1.0},"d":{"did_placebo":1.0,"pretrend_gap":1.0,"unconf_placebo":1.0}},"bracket_d":1.0}}/*DATA_END*/;
+</script>
+<script>
+// ── Helpers ──────────────────────────────────────────────────────────────
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, v);
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+function clear(svg) { while (svg.firstChild) svg.removeChild(svg.firstChild); }
+function lin(d0, d1, r0, r1) { return v => r0 + (v - d0) / (d1 - d0) * (r1 - r0); }
+function get(path) { return path.split('.').reduce((o, k) => (o == null ? o : o[k]), DATA); }
+function fmt(v, f) {
+  if (v == null) return '…';
+  if (f === 's2') return (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2);
+  if (f === 'pct') return Math.round(v * 100) + '%';
+  if (f === '2') return v.toFixed(2);
+  return String(v);
+}
+function ticks(lo, hi, n) {
+  const span = hi - lo, raw = span / n, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map(s => s * mag).find(s => span / s <= n) || 10 * mag;
+  const out = [];
+  for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(+v.toFixed(10));
+  return out;
+}
+function pad(lo, hi, f) { const p = (hi - lo) * (f || 0.08) || 1; return [lo - p, hi + p]; }
+
+const COL = { treated: '#eb6834', control: '#2a78d6', aqua: '#1baf7a', ink: '#111827', muted: '#6b7280', grid: '#e5e7eb', raw: '#9ca3af' };
+const SC = { a: 'a. Observables only', b: 'b. Stable trait', c: 'c. Transitory dip', d: 'd. Both' };
+const narrow = () => window.matchMedia('(max-width: 599px)').matches;
+const FS = () => narrow() ? { axis: 11, lab: 11.5, val: 11.5 } : { axis: 12.5, lab: 13, val: 13 };
+const ET = DATA.event_times || [];
+
+// ── Event-time line chart ────────────────────────────────────────────────
+function lineChart(svg, o) {
+  clear(svg);
+  const W = o.W, H = o.H, fs = o.fs || FS();
+  const m = { l: o.ml || 44, r: o.mr || 14, t: 10, b: 34 };
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  let lo = Infinity, hi = -Infinity;
+  for (const s of o.series) for (const arr of [s.y, s.lo, s.hi]) if (arr) for (const v of arr) if (v != null) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+  if (o.zero) { lo = Math.min(lo, 0); hi = Math.max(hi, 0); }
+  [lo, hi] = pad(lo, hi);
+  const x = lin(ET[0] - 0.5, ET[ET.length - 1] + 0.5, m.l, W - m.r);
+  const y = lin(lo, hi, H - m.b, m.t);
+  if (o.shade) {
+    svg.appendChild(el('rect', { x: x(-4.5), y: m.t, width: x(-0.5) - x(-4.5), height: H - m.b - m.t, fill: '#f3f4f6' }));
+    svg.appendChild(el('rect', { x: x(-0.5), y: m.t, width: x(3.5) - x(-0.5), height: H - m.b - m.t, fill: '#fdf0e9' }));
+  }
+  for (const t of ticks(lo, hi, 4)) {
+    svg.appendChild(el('line', { x1: m.l, x2: W - m.r, y1: y(t), y2: y(t), stroke: COL.grid }));
+    svg.appendChild(el('text', { x: m.l - 6, y: y(t) + 4, 'text-anchor': 'end', 'font-size': fs.axis, fill: COL.muted }, (+t.toFixed(2)).toString()));
+  }
+  if (o.zero) svg.appendChild(el('line', { x1: m.l, x2: W - m.r, y1: y(0), y2: y(0), stroke: COL.muted }));
+  if (o.vline !== false) svg.appendChild(el('line', { x1: x(-0.5), x2: x(-0.5), y1: m.t, y2: H - m.b, stroke: COL.muted, 'stroke-dasharray': '3 3' }));
+  const step = W < 400 ? 2 : 1;
+  ET.forEach((t, i) => { if (i % step === 0 || t === 0) svg.appendChild(el('text', { x: x(t), y: H - m.b + 16, 'text-anchor': 'middle', 'font-size': fs.axis, fill: COL.muted }, t)); });
+  svg.appendChild(el('text', { x: (m.l + W - m.r) / 2, y: H - 4, 'text-anchor': 'middle', 'font-size': fs.axis, fill: COL.muted }, 'Weeks relative to opt-in'));
+  for (const s of o.series) {
+    if (s.lo && s.hi) {
+      let d = '';
+      ET.forEach((t, i) => { d += (i ? 'L' : 'M') + x(t) + ',' + y(s.hi[i]); });
+      for (let i = ET.length - 1; i >= 0; i--) d += 'L' + x(ET[i]) + ',' + y(s.lo[i]);
+      svg.appendChild(el('path', { d: d + 'Z', fill: s.color, opacity: 0.15 }));
+    }
+    let d = '';
+    ET.forEach((t, i) => { if (s.y[i] != null) d += (d ? 'L' : 'M') + x(t) + ',' + y(s.y[i]); });
+    svg.appendChild(el('path', { d, fill: 'none', stroke: s.color, 'stroke-width': s.w || 2.2, 'stroke-dasharray': s.dash || '' }));
+    if (s.dots !== false) ET.forEach((t, i) => { if (s.y[i] != null) svg.appendChild(el('circle', { cx: x(t), cy: y(s.y[i]), r: 2.6, fill: s.color })); });
+    if (s.label) svg.appendChild(el('text', { x: x(ET[ET.length - 1]) + 5, y: y(s.y[s.y.length - 1]) + 4, 'font-size': fs.lab, fill: COL.ink }, s.label));
+  }
+}
+
+// ── Interval chart (hook, MC) ────────────────────────────────────────────
+function intervalChart(svg, o) {
+  clear(svg);
+  const W = o.W, fs = o.fs || FS(), rowH = o.rowH || 34;
+  const m = { l: o.ml || 150, r: 18, t: 8, b: 36 };
+  const H = m.t + m.b + rowH * o.rows.length;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  let lo = Math.min(...o.rows.map(r => r.lo)), hi = Math.max(...o.rows.map(r => r.hi));
+  if (o.truth != null) { lo = Math.min(lo, o.truth); hi = Math.max(hi, o.truth); }
+  if (o.domain) [lo, hi] = o.domain; else [lo, hi] = pad(lo, hi, 0.12);
+  const x = lin(lo, hi, m.l, W - m.r);
+  for (const t of ticks(lo, hi, W < 400 ? 4 : 6)) {
+    svg.appendChild(el('line', { x1: x(t), x2: x(t), y1: m.t, y2: H - m.b, stroke: COL.grid }));
+    svg.appendChild(el('text', { x: x(t), y: H - m.b + 16, 'text-anchor': 'middle', 'font-size': fs.axis, fill: COL.muted }, (+t.toFixed(2)).toString()));
+  }
+  svg.appendChild(el('text', { x: (m.l + W - m.r) / 2, y: H - 4, 'text-anchor': 'middle', 'font-size': fs.axis, fill: COL.muted }, o.xlab || 'ATT estimate'));
+  o.rows.forEach((r, i) => {
+    const cy = m.t + rowH * (i + 0.5);
+    svg.appendChild(el('text', { x: m.l - 10, y: cy + 4, 'text-anchor': 'end', 'font-size': fs.lab, fill: COL.ink }, r.label));
+    svg.appendChild(el('line', { x1: x(r.lo), x2: x(r.hi), y1: cy, y2: cy, stroke: COL.ink, 'stroke-width': r.q ? 1.4 : 2.4 }));
+    if (r.q) svg.appendChild(el('line', { x1: x(r.q[0]), x2: x(r.q[1]), y1: cy, y2: cy, stroke: COL.ink, 'stroke-width': 6 }));
+    svg.appendChild(el('circle', { cx: x(r.mid), cy, r: 5, fill: r.color || COL.ink, stroke: '#fff', 'stroke-width': 1.5 }));
+    if (o.values) svg.appendChild(el('text', { x: x(r.mid), y: cy - 9, 'text-anchor': 'middle', 'font-size': fs.val, fill: COL.ink, 'font-weight': 600 }, r.mid.toFixed(2)));
+  });
+  if (o.truth != null && o.showTruth !== false) {
+    svg.appendChild(el('line', { x1: x(o.truth), x2: x(o.truth), y1: m.t, y2: H - m.b, stroke: COL.treated, 'stroke-width': 1.8, 'stroke-dasharray': '5 4' }));
+    if (o.truthLabel) svg.appendChild(el('text', { x: x(o.truth) + 5, y: m.t + 11, 'font-size': fs.val, fill: COL.treated, 'font-weight': 600 }, o.truthLabel));
+  }
+}
+
+function widthOf(id) { return narrow() ? 340 : 660; }
+
+// ── Charts ───────────────────────────────────────────────────────────────
+function drawHook() {
+  const h = get('single.c.hook');
+  if (!h) return;
+  const rows = [
+    { label: narrow() ? 'A (unconf.)' : 'Analyst A: unconfoundedness', mid: h.unconf.estimate, lo: h.unconf.ci_low, hi: h.unconf.ci_high, color: COL.control },
+    { label: narrow() ? 'B (DiD)' : 'Analyst B: DiD', mid: h.did.estimate, lo: h.did.ci_low, hi: h.did.ci_high, color: COL.aqua },
+  ];
+  intervalChart(document.getElementById('chartHook'), {
+    W: widthOf(), rows, rowH: 46, ml: narrow() ? 90 : 200, domain: [1.5, 3.5], values: true,
+    truth: get('single.c.truth'),
+  });
+}
+
+const tabState = { means: 'b', cf: 'c' };
+function buildTabs() {
+  document.querySelectorAll('.tabs').forEach(box => {
+    const key = box.dataset.chart;
+    box.innerHTML = '';
+    for (const s of 'abcd') {
+      const b = document.createElement('button');
+      b.textContent = SC[s];
+      if (tabState[key] === s) b.classList.add('on');
+      b.addEventListener('click', () => { tabState[key] = s; buildTabs(); drawAll(); });
+      box.appendChild(b);
+    }
+  });
+}
+
+function drawMeans() {
+  const s = get(`single.${tabState.means}`);
+  if (!s) return;
+  lineChart(document.getElementById('chartMeans'), {
+    W: widthOf(), H: narrow() ? 230 : 270, mr: narrow() ? 58 : 66,
+    series: [
+      { y: s.means.control.mean, lo: s.means.control.lo, hi: s.means.control.hi, color: COL.control, label: 'Control' },
+      { y: s.means.treated.mean, lo: s.means.treated.lo, hi: s.means.treated.hi, color: COL.treated, label: 'Treated' },
+    ],
+  });
+}
+
+const CF_CAP = {
+  a: 'Scenario a: both implied counterfactuals track the truth, so both designs recover the effect.',
+  b: 'Scenario b: the DiD line tracks the truth. The unconfoundedness line sits too high, so it understates the effect.',
+  c: 'Scenario c: the unconfoundedness line tracks the truth as it recovers from the dip. The DiD line stays at the depressed level, so it overstates the effect.',
+  d: 'Scenario d: the truth sits between the two implied counterfactuals.',
+};
+function drawCF() {
+  const key = tabState.cf, s = get(`single.${key}`);
+  if (!s) return;
+  lineChart(document.getElementById('chartCF'), {
+    W: widthOf(), H: narrow() ? 240 : 290,
+    series: [
+      { y: s.cf.did_cf.map((v, i) => (ET[i] >= -4 ? v : null)), color: COL.aqua },
+      { y: s.cf.unconf_cf, color: COL.control },
+      { y: s.cf.true_y0, color: COL.ink, dash: '5 4', w: 2, dots: false },
+      { y: s.cf.actual, color: COL.treated },
+    ],
+  });
+  document.getElementById('cfCap').textContent = CF_CAP[key];
+}
+
+function drawLags() {
+  const mc = get('mc.methods');
+  const svg = document.getElementById('chartLags');
+  if (!mc) return;
+  clear(svg);
+  const W = widthOf(), fs = FS(), rowH = 40, m = { l: narrow() ? 92 : 150, r: 18, t: 8, b: 36 };
+  const scen = Object.keys(mc), H = m.t + m.b + rowH * scen.length;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const keys = [['unconf', COL.control], ['did', COL.aqua], ['did_lags', COL.ink]];
+  const vals = scen.flatMap(s => keys.map(([k]) => mc[s][k].bias));
+  const [lo, hi] = pad(Math.min(0, ...vals), Math.max(0, ...vals), 0.12);
+  const x = lin(lo, hi, m.l, W - m.r);
+  for (const t of ticks(lo, hi, 5)) {
+    svg.appendChild(el('line', { x1: x(t), x2: x(t), y1: m.t, y2: H - m.b, stroke: COL.grid }));
+    svg.appendChild(el('text', { x: x(t), y: H - m.b + 16, 'text-anchor': 'middle', 'font-size': fs.axis, fill: COL.muted }, (+t.toFixed(2)).toString()));
+  }
+  svg.appendChild(el('line', { x1: x(0), x2: x(0), y1: m.t, y2: H - m.b, stroke: COL.muted }));
+  svg.appendChild(el('text', { x: (m.l + W - m.r) / 2, y: H - 4, 'text-anchor': 'middle', 'font-size': fs.axis, fill: COL.muted }, 'Bias (estimate minus truth)'));
+  scen.forEach((s, i) => {
+    const cy = m.t + rowH * (i + 0.5);
+    svg.appendChild(el('text', { x: m.l - 10, y: cy + 4, 'text-anchor': 'end', 'font-size': fs.lab, fill: COL.ink }, narrow() ? s : SC[s]));
+    keys.forEach(([k, c], j) => {
+      svg.appendChild(el('circle', { cx: x(mc[s][k].bias), cy: cy + (j - 1) * 8, r: 5, fill: c, stroke: '#fff', 'stroke-width': 1.2 }));
+    });
+  });
+}
+
+function drawBalance() {
+  const b = get('single.c.balance');
+  const svg = document.getElementById('chartBalance');
+  if (!b) return;
+  clear(svg);
+  const W = widthOf(), fs = FS(), rowH = 22, m = { l: 110, r: 18, t: 6, b: 36 };
+  const H = m.t + m.b + rowH * b.features.length;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const all = b.raw.concat(b.weighted);
+  const [lo, hi] = pad(Math.min(-0.15, ...all), Math.max(0.15, ...all), 0.06);
+  const x = lin(lo, hi, m.l, W - m.r);
+  for (const t of ticks(lo, hi, 5)) svg.appendChild(el('text', { x: x(t), y: H - m.b + 16, 'text-anchor': 'middle', 'font-size': fs.axis, fill: COL.muted }, (+t.toFixed(2)).toString()));
+  svg.appendChild(el('text', { x: (m.l + W - m.r) / 2, y: H - 4, 'text-anchor': 'middle', 'font-size': fs.axis, fill: COL.muted }, 'Standardised mean difference'));
+  svg.appendChild(el('line', { x1: x(0), x2: x(0), y1: m.t, y2: H - m.b, stroke: COL.muted }));
+  for (const t of [-0.1, 0.1]) svg.appendChild(el('line', { x1: x(t), x2: x(t), y1: m.t, y2: H - m.b, stroke: COL.muted, 'stroke-dasharray': '2 3' }));
+  const names = { y_m8: 'week -8', y_m7: 'week -7', y_m6: 'week -6', y_m5: 'week -5', y_m4: 'week -4', y_m3: 'week -3', y_m2: 'week -2', y_m1: 'week -1', recent_change: 'recent change', season_sin: 'season (sin)', season_cos: 'season (cos)' };
+  b.features.forEach((f, i) => {
+    const cy = m.t + rowH * (i + 0.5);
+    svg.appendChild(el('line', { x1: m.l, x2: W - m.r, y1: cy, y2: cy, stroke: COL.grid }));
+    svg.appendChild(el('text', { x: m.l - 8, y: cy + 4, 'text-anchor': 'end', 'font-size': fs.axis, fill: COL.ink }, names[f] || f));
+    svg.appendChild(el('circle', { cx: x(b.raw[i]), cy, r: 4.5, fill: COL.raw }));
+    svg.appendChild(el('circle', { cx: x(b.weighted[i]), cy, r: 4.5, fill: COL.treated }));
+  });
+}
+
+function gapPanels(id, key, zkey) {
+  const box = document.getElementById(id);
+  box.innerHTML = '';
+  for (const s of 'abcd') {
+    const d = get(`single.${s}`);
+    if (!d) continue;
+    const div = document.createElement('div');
+    const z = d[zkey];
+    div.innerHTML = `<div class="panel-title">${SC[s]}</div><div class="panel-sub">max |z| over weeks -4 to -1: ${z}${z > 2.5 ? ' (flags)' : ''}</div>`;
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('class', 'chart');
+    div.appendChild(svg);
+    box.appendChild(div);
+    const g = d[key];
+    lineChart(svg, { W: 340, H: 200, fs: { axis: 11, lab: 11, val: 11 }, ml: 36, shade: true, zero: true, vline: false,
+      series: [{ y: g.gap, lo: g.lo, hi: g.hi, color: COL.ink, w: 2 }] });
+  }
+}
+
+function mcPanels() {
+  const mc = get('mc.methods');
+  const box = document.getElementById('panelsMC');
+  box.innerHTML = '';
+  if (!mc) { box.textContent = 'Monte Carlo results not yet generated.'; return; }
+  const all = Object.values(mc).flatMap(s => ['unconf', 'did', 'did_lags'].flatMap(k => s[k].q));
+  const domain = pad(Math.min(...all, 2), Math.max(...all, 2), 0.04);
+  const labels = { naive_unconf: 'Naive', unconf: 'Unconfoundedness', did: 'DiD', did_lags: 'DiD with lags' };
+  const short = { naive_unconf: 'Naive', unconf: 'Unconf.', did: 'DiD', did_lags: 'DiD + lags' };
+  const colors = { naive_unconf: COL.raw, unconf: COL.control, did: COL.aqua, did_lags: COL.ink };
+  for (const s of Object.keys(mc)) {
+    const div = document.createElement('div');
+    div.innerHTML = `<div class="panel-title">${SC[s]}</div>`;
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('class', 'chart');
+    div.appendChild(svg);
+    box.appendChild(div);
+    const rows = ['unconf', 'did', 'did_lags'].map(k => ({
+      label: narrow() ? labels[k] : short[k], mid: mc[s][k].mean, lo: mc[s][k].q[0], hi: mc[s][k].q[3], q: [mc[s][k].q[1], mc[s][k].q[2]], color: colors[k],
+    }));
+    intervalChart(svg, { W: 340, rows, rowH: 30, ml: narrow() ? 120 : 80, domain, truth: 2.0, fs: { axis: 11, lab: 11.5, val: 11 } });
+  }
+}
+
+function fillTables() {
+  const mc = get('mc.methods');
+  const t = document.getElementById('tableMC');
+  if (mc) {
+    const ks = ['unconf', 'did', 'did_lags', 'naive_unconf'];
+    const nm = { unconf: 'Unconf.', did: 'DiD', did_lags: 'DiD + lags', naive_unconf: 'Naive' };
+    let h = t.querySelector('caption').outerHTML + '<thead><tr><th>Scenario</th><th>Design</th><th class="num">Bias</th><th class="num">RMSE</th><th class="num">Coverage</th></tr></thead><tbody>';
+    for (const s of Object.keys(mc)) ks.forEach((k, i) => {
+      const v = mc[s][k], cov = v.coverage;
+      const cls = cov >= 0.9 ? 'good' : (cov < 0.5 ? 'bad' : '');
+      h += `<tr><td>${i === 0 ? SC[s] : ''}</td><td>${nm[k]}</td><td class="num">${fmt(v.bias, 's2')}</td><td class="num">${v.rmse.toFixed(2)}</td><td class="num ${cls}">${Math.round(cov * 100)}%</td></tr>`;
+    });
+    t.innerHTML = h + '</tbody>';
+  }
+  const rj = get('mc.rejection');
+  const tr = document.getElementById('tableReject');
+  if (rj) {
+    let h = tr.querySelector('caption').outerHTML + '<thead><tr><th>Scenario</th><th class="num">DiD pre-trend check</th><th class="num">DiD placebo (DML)</th><th class="num">Unconf. placebo (DML)</th></tr></thead><tbody>';
+    for (const s of Object.keys(rj)) {
+      const r = rj[s];
+      h += `<tr><td>${SC[s]}</td><td class="num">${fmt(r.pretrend_gap, 'pct')}</td><td class="num">${fmt(r.did_placebo, 'pct')}</td><td class="num">${fmt(r.unconf_placebo, 'pct')}</td></tr>`;
+    }
+    tr.innerHTML = h + '</tbody>';
+  }
+  const td = document.getElementById('tableDiagnose');
+  const rd = { 'false,false': 'Either design', 'false,true': 'DiD', 'true,false': 'Unconfoundedness, DiD as bound', 'true,true': 'Unconfoundedness, DiD as bound' };
+  let h = td.querySelector('caption').outerHTML + '<thead><tr><th>Scenario</th><th>Pre-trend check</th><th>Placebo</th><th>Reading</th></tr></thead><tbody>';
+  for (const s of 'abcd') {
+    const d = get(`single.${s}`);
+    if (!d) continue;
+    h += `<tr><td>${SC[s]}</td><td>${d.flags[0] ? 'dips' : 'flat'}</td><td>${d.flags[1] ? 'flags' : 'flat'}</td><td>${rd[d.flags.join(',')]}</td></tr>`;
+  }
+  td.innerHTML = h + '</tbody>';
+}
+
+function fillValues() {
+  document.querySelectorAll('[data-v]').forEach(n => { n.textContent = fmt(get(n.dataset.v), n.dataset.f); });
+}
+
+function drawAll() {
+  drawHook(); drawMeans(); drawCF(); drawLags(); drawBalance();
+  gapPanels('panelsPretrend', 'pretrend', 'pretrend_z');
+  gapPanels('panelsPlacebo', 'placebo', 'placebo_z');
+  mcPanels();
+}
+
+// ── Nav highlight ────────────────────────────────────────────────────────
+const links = [...document.querySelectorAll('.snav a')];
+const secs = links.map(a => document.querySelector(a.getAttribute('href')));
+window.addEventListener('scroll', () => {
+  let cur = 0;
+  secs.forEach((s, i) => { if (s && s.getBoundingClientRect().top < 120) cur = i; });
+  links.forEach((a, i) => a.classList.toggle('active', i === cur));
+}, { passive: true });
+
+let lastNarrow = narrow();
+window.addEventListener('resize', () => { if (narrow() !== lastNarrow) { lastNarrow = narrow(); drawAll(); } });
+
+buildTabs(); fillValues(); fillTables(); drawAll();
+</script>
+</body>
+</html>

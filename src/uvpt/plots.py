@@ -162,7 +162,7 @@ def plot_balance(
         )
     ax.set_yticks(pos, b.index)
     ax.set_xlabel("Standardised mean difference")
-    ax.legend(frameon=False, loc="lower right")
+    ax.legend(frameon=False, loc="upper left", bbox_to_anchor=(1.0, 1.0))
     if title:
         ax.set_title(title)
     return ax

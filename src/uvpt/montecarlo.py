@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
 
-from uvpt.diagnostics import placebo_test, pretrend_event_time
+from uvpt.diagnostics import FLAG_Z, placebo_test, pretrend_event_time
 from uvpt.estimators import estimate_all
 from uvpt.features import to_wide
 from uvpt.simulate import SCENARIOS, scenario_config, simulate
@@ -144,11 +144,7 @@ def summarise(results: pd.DataFrame) -> pd.DataFrame:
     return out.reset_index()
 
 
-# Two-sided 5% with a Bonferroni correction over the four pre-window weeks.
-PRETREND_Z = 2.498
-
-
-def rejection_rates(results: pd.DataFrame, z: float = PRETREND_Z) -> pd.DataFrame:
+def rejection_rates(results: pd.DataFrame, z: float = FLAG_Z) -> pd.DataFrame:
     """Share of replications where each diagnostic flags a problem.
 
     Placebo DML rows flag when their 95% interval excludes zero. The pre-trend

@@ -251,3 +251,54 @@ def sensitivity(
         "rv": float(np.ravel(p["rv"])[0]),
         "rva": float(np.ravel(p["rva"])[0]),
     }
+
+
+# Two-sided 5% with a Bonferroni correction over the four pre-window weeks.
+FLAG_Z = 2.498
+
+READINGS = {
+    (False, False): (
+        "No pre-period divergence in either check. Both designs are plausible "
+        "and their estimates should agree."
+    ),
+    (False, True): (
+        "Pre-trends are flat but the unconfoundedness placebo drifts. This is "
+        "the signature of a stable unobserved trait: prefer DiD."
+    ),
+    (True, False): (
+        "Pre-trends diverge but the unconfoundedness placebo is flat. Parallel "
+        "trends fails: prefer unconfoundedness and report DiD as the other bound."
+    ),
+    (True, True): (
+        "Pre-trends diverge, so parallel trends fails. The unconfoundedness "
+        "placebo cannot tell selection on recent outcomes from a stable trait. "
+        "Prefer unconfoundedness if selection plausibly runs on recent "
+        "engagement, and report both estimates as bounds."
+    ),
+}
+
+
+def diagnose(
+    wide: pd.DataFrame,
+    kind: str = "lgbm",
+    fast: bool = True,
+    seed: int = 0,
+    covariates: Sequence[str] = COVARIATES,
+    z: float = FLAG_Z,
+) -> dict:
+    """Run both pre-period checks and map the result to the decision rule.
+
+    A check flags when any week in t-4 to t-1 has ``|z| > z``. Returns both
+    summaries, both flags and a one-paragraph reading.
+    """
+    kw = {"kind": kind, "fast": fast, "seed": seed, "covariates": covariates}
+    pre = pretrend_event_time(wide, **kw)
+    plac = placebo_event_time(wide, **kw)
+    flags = (pre["pretrend_max_abs_z"] > z, plac["placebo_max_abs_z"] > z)
+    return {
+        "pretrend": pre,
+        "placebo": plac,
+        "pretrend_flag": bool(flags[0]),
+        "placebo_flag": bool(flags[1]),
+        "reading": READINGS[flags],
+    }
