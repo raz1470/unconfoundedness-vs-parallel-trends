@@ -91,7 +91,10 @@ def season_features(index_week: pd.Series, period: int = 52) -> pd.DataFrame:
     )
 
 
-def _baseline(wide, covariates):
+def baseline_features(
+    wide: pd.DataFrame, covariates: Sequence[str] = COVARIATES
+) -> pd.DataFrame:
+    """Non-outcome covariates plus index-week seasonality when available."""
     parts = [wide[list(covariates)]]
     if "index_week" in wide:
         parts.append(season_features(wide["index_week"]))
@@ -152,7 +155,7 @@ def unconf_design(
 ) -> Design:
     """Unconfoundedness: post-window mean on history through t-1 plus baseline."""
     x = pd.concat(
-        [history_features(wide, cutoff=-1), _baseline(wide, covariates)], axis=1
+        [history_features(wide, cutoff=-1), baseline_features(wide, covariates)], axis=1
     )
     return Design("unconf", window_mean(wide, post), wide["treated"], x)
 
@@ -168,7 +171,7 @@ def did_design(
 
     With ``include_early_lags`` the outcome at t-8 to t-5 is added as covariates.
     """
-    x = _baseline(wide, covariates)
+    x = baseline_features(wide, covariates)
     name = "did"
     if include_early_lags:
         x = pd.concat([x, wide[ycols(*EARLY_WINDOW)]], axis=1)
@@ -188,7 +191,7 @@ def placebo_designs(
     Features stop at t-5, so the true effect on the placebo outcome is zero.
     A non-zero estimate means the design's assumption fails over t-4 to t-1.
     """
-    base = _baseline(wide, covariates)
+    base = baseline_features(wide, covariates)
     cutoff = placebo[0] - 1
     hist = history_features(wide, cutoff=cutoff)
     y_unconf = window_mean(wide, placebo)
