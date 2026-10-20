@@ -125,18 +125,24 @@ def window_mean(wide: pd.DataFrame, window: tuple[int, int]) -> pd.Series:
 
 @dataclass
 class Design:
-    """Inputs for one estimator: outcome, treatment and features."""
+    """Inputs for one estimator: outcome, treatment and features.
+
+    For a DiD design ``y`` is the post-minus-pre change and ``pre`` holds the
+    pre-window mean, so the two-period panel can be rebuilt.
+    """
 
     name: str
     y: pd.Series
     d: pd.Series
     x: pd.DataFrame
+    pre: pd.Series | None = None
 
     def __post_init__(self):
-        if not (
-            self.y.index.equals(self.d.index) and self.d.index.equals(self.x.index)
-        ):
-            raise ValueError("y, d and x must share an index")
+        idx = [self.y.index, self.d.index, self.x.index]
+        if self.pre is not None:
+            idx.append(self.pre.index)
+        if not all(i.equals(idx[0]) for i in idx[1:]):
+            raise ValueError("y, d, x and pre must share an index")
 
 
 def unconf_design(
@@ -167,8 +173,9 @@ def did_design(
     if include_early_lags:
         x = pd.concat([x, wide[ycols(*EARLY_WINDOW)]], axis=1)
         name = "did_lags"
-    y = window_mean(wide, post) - window_mean(wide, pre)
-    return Design(name, y, wide["treated"], x)
+    y_pre = window_mean(wide, pre)
+    y = window_mean(wide, post) - y_pre
+    return Design(name, y, wide["treated"], x, pre=y_pre)
 
 
 def placebo_designs(
@@ -185,10 +192,12 @@ def placebo_designs(
     cutoff = placebo[0] - 1
     hist = history_features(wide, cutoff=cutoff)
     y_unconf = window_mean(wide, placebo)
-    y_did = y_unconf - window_mean(wide, (EARLY_WINDOW[0], cutoff))
+    y_early = window_mean(wide, (EARLY_WINDOW[0], cutoff))
     return {
         "unconf": Design(
             "unconf_placebo", y_unconf, wide["treated"], pd.concat([hist, base], axis=1)
         ),
-        "did": Design("did_placebo", y_did, wide["treated"], base),
+        "did": Design(
+            "did_placebo", y_unconf - y_early, wide["treated"], base, pre=y_early
+        ),
     }
