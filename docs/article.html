@@ -185,65 +185,120 @@ footer { max-width: var(--w); margin: 0 auto; padding: 1.5rem; border-top: 1px s
 
 <header class="hdr">
   <h1>Unconfoundedness vs Parallel Trends</h1>
-  <p class="tagline">Which assumption fits your self-selected treatment? Two analysts, one dataset, two confident answers. The estimator is not why they disagree.</p>
+  <p class="tagline">Which assumption fits your self-selected treatment? Same data, same estimator, two different answers. The assumption decides which one is right.</p>
   <p class="byline">Ryan O'Sullivan · Code and notebook on <a href="https://github.com/raz1470/unconfoundedness-vs-parallel-trends" style="color:#cbd5e1">GitHub</a></p>
 </header>
 
 <nav class="snav">
-  <a href="#pick" class="active">1 · Which would you pick?</a>
-  <a href="#assumptions">2 · Two assumptions</a>
-  <a href="#churn">3 · Churn</a>
+  <a href="#assumptions" class="active">1 · Two designs</a>
+  <a href="#failures">2 · Failure modes</a>
+  <a href="#simulation">3 · Simulation</a>
   <a href="#covariates">4 · Covariates</a>
   <a href="#diagnostic">5 · The diagnostic</a>
-  <a href="#rule">6 · Decision rule</a>
-  <a href="#estimation">7 · Estimation</a>
-  <a href="#results">8 · Results</a>
+  <a href="#results">6 · Results</a>
   <a href="#faq">Questions</a>
   <a href="#together">Bringing it together</a>
 </nav>
 
 <main>
 
-<p>Most treatments in product analytics are chosen by the user. Someone turns on a feature, joins a community, starts a free trial of a premium tier. There is no randomisation, so estimating the effect means modelling why some users opted in and others did not.</p>
+<p>Most treatments in product analytics are chosen by the user. Someone turns on a feature, joins a community, or starts a free trial of a premium tier. There is no randomisation, but under the right assumptions we can still estimate the effect of these self-selected treatments. Without a valid instrument or a cut-off to exploit (the settings for instrumental variables or regression discontinuity), analysts tend to fall into one of two camps:</p>
 
-<p>How analysts approach this usually depends on where they learned causal inference. The machine learning route runs through <a href="https://matheusfacure.github.io/python-causality-handbook/" target="_blank" rel="noopener">Causal Inference for the Brave and True</a> and libraries like <a href="https://github.com/py-why/EconML" target="_blank" rel="noopener">EconML</a>, <a href="https://github.com/uber/causalml" target="_blank" rel="noopener">CausalML</a> and <a href="https://docs.doubleml.org/" target="_blank" rel="noopener">DoubleML</a>, and tends to end at double machine learning with a rich set of pre-treatment features. The econometrics route runs through <a href="https://mixtape.scunning.com/" target="_blank" rel="noopener">The Mixtape</a> and event studies, and tends to end at difference-in-differences.</p>
+<ul class="pts">
+  <li><strong>Lagged-outcome regression</strong>, usually estimated with double machine learning. This camp learned from <a href="https://matheusfacure.github.io/python-causality-handbook/" target="_blank" rel="noopener">Causal Inference for the Brave and True</a> and uses libraries like <a href="https://github.com/py-why/EconML" target="_blank" rel="noopener">EconML</a> and <a href="https://github.com/uber/causalml" target="_blank" rel="noopener">CausalML</a>.</li>
+  <li><strong>Difference-in-differences</strong>, learned from <a href="https://mixtape.scunning.com/" target="_blank" rel="noopener">The Mixtape</a> and brought up to date by papers like Sant'Anna and Zhao's <a href="https://arxiv.org/abs/1812.01723" target="_blank" rel="noopener">Doubly Robust Difference-in-Differences Estimators</a> (2020).</li>
+</ul>
 
-<p>Both are reasonable, and both can be estimated with the same doubly robust machinery. That is the point this article is built around. The estimator and the identifying assumption are separate choices, and it is the assumption that decides whether the answer is right. This simulation study shows when each assumption fails, and gives a diagnostic for telling them apart in your own data.</p>
+<p>Both are reasonable, and both can be estimated with the same doubly robust machinery. <a href="https://docs.doubleml.org/" target="_blank" rel="noopener">DoubleML</a> implements both. That is the point this article is built around: the estimator and the identifying assumption are separate choices, and the assumption decides whether the answer is right.</p>
+
+<ul class="pts">
+  <li>Lagged-outcome regression assumes no unobserved confounding once you condition on past outcomes and covariates.</li>
+  <li>Difference-in-differences assumes parallel trends: without treatment, treated and control outcomes would have moved together.</li>
+</ul>
+
+<p>This simulation study shows when each assumption fails and gives a rule for choosing between them.</p>
 
 <!-- 1 -->
-<section id="pick">
-  <p class="s-label">1 · Setup</p>
-  <h2>Which would you pick?</h2>
+<section id="assumptions">
+  <p class="s-label">1 · Two designs</p>
+  <h2>Lagged outcomes and difference-in-differences</h2>
 
-  <p>A product team ships an opt-in feature. Users choose whether to turn it on. The team wants the effect on weekly engagement among the users who turned it on: the average treatment effect on the treated, or ATT.</p>
+  <p>Let's look more closely at what lagged-outcome regression and difference-in-differences each do.</p>
 
-  <p>Two analysts get the same data: 10,000 users, eight weeks of engagement before each user's decision and four weeks after.</p>
-
-  <ul class="pts">
-    <li><strong>Analyst A</strong> conditions on each user's last eight weeks of engagement plus their account characteristics, and fits a doubly robust DML model. Treated and control users with the same history should have had the same future without the feature.</li>
-    <li><strong>Analyst B</strong> runs a conditional difference-in-differences, also estimated with DML. Treated and control users with the same characteristics should have followed the same trend without the feature.</li>
-  </ul>
+  <p><strong>Lagged-outcome regression</strong> compares treated and control users who had the same engagement history and characteristics before treatment. After reweighting so those histories match, the difference in post-period engagement is the effect.</p>
 
   <div class="fig">
-    <div class="fig-hdr">
-      <div class="fig-title">Two estimates of the same effect</div>
-      <div class="fig-sub">ATT on weekly engagement with 95% confidence intervals. Dashed: the true effect.</div>
-    </div>
     <div class="fig-body">
-      <svg class="chart" id="chartHook"></svg>
+      <svg class="chart" role="img" aria-label="Lagged-outcome regression schematic" viewBox="0 0 720 340">
+        <defs>
+          <marker id="arrLO" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#555"/></marker>
+        </defs>
+        <text x="230" y="42" text-anchor="middle" font-size="13" font-weight="700" fill="#333" letter-spacing="0.5">PAST OUTCOMES + COVARIATES</text>
+        <text x="230" y="60" text-anchor="middle" font-size="12" fill="#888">weeks t−8 … t−1</text>
+        <text x="560" y="42" text-anchor="middle" font-size="13" font-weight="700" fill="#333" letter-spacing="0.5">OUTCOME</text>
+        <text x="560" y="60" text-anchor="middle" font-size="12" fill="#888">weeks t0 … t+3</text>
+        <rect x="60" y="80" width="340" height="90" rx="10" fill="#fde9e0" stroke="#eb6834" stroke-width="1.5"/>
+        <text x="78" y="108" font-size="15" font-weight="700" fill="#eb6834">Treated</text>
+        <text x="78" y="132" font-size="12" fill="#666">engagement history</text>
+        <text x="78" y="150" font-size="12" fill="#666">+ covariates</text>
+        <polyline points="205,130 230,120 255,135 280,115 305,128 330,110 355,125 380,118" fill="none" stroke="#eb6834" stroke-width="2.5" stroke-linejoin="round"/>
+        <rect x="440" y="80" width="240" height="90" rx="10" fill="#fde9e0" stroke="#eb6834" stroke-width="1.5"/>
+        <text x="460" y="108" font-size="12" fill="#666">mean engagement</text>
+        <rect x="460" y="122" width="170" height="22" rx="3" fill="#eb6834"/>
+        <line x1="404" y1="125" x2="436" y2="125" stroke="#555" stroke-width="1.5" marker-end="url(#arrLO)"/>
+        <rect x="60" y="230" width="340" height="90" rx="10" fill="#e4eefb" stroke="#2a78d6" stroke-width="1.5"/>
+        <text x="78" y="258" font-size="15" font-weight="700" fill="#2a78d6">Control</text>
+        <text x="78" y="282" font-size="12" fill="#666">engagement history</text>
+        <text x="78" y="300" font-size="12" fill="#666">+ covariates</text>
+        <polyline points="205,282 230,271 255,286 280,266 305,279 330,261 355,276 380,269" fill="none" stroke="#2a78d6" stroke-width="2.5" stroke-linejoin="round"/>
+        <rect x="440" y="230" width="240" height="90" rx="10" fill="#e4eefb" stroke="#2a78d6" stroke-width="1.5"/>
+        <text x="460" y="258" font-size="12" fill="#666">mean engagement</text>
+        <rect x="460" y="272" width="120" height="22" rx="3" fill="#2a78d6"/>
+        <line x1="404" y1="275" x2="436" y2="275" stroke="#555" stroke-width="1.5" marker-end="url(#arrLO)"/>
+        <text x="230" y="206" text-anchor="middle" font-size="22" font-weight="700" fill="#333">≈</text>
+        <text x="252" y="196" font-size="11.5" fill="#555">reweight / adjust so</text>
+        <text x="252" y="211" font-size="11.5" fill="#555">histories match</text>
+        <line x1="580" y1="118" x2="580" y2="298" stroke="#888" stroke-width="1" stroke-dasharray="4 3"/>
+        <line x1="630" y1="118" x2="630" y2="298" stroke="#888" stroke-width="1" stroke-dasharray="4 3"/>
+        <line x1="584" y1="198" x2="626" y2="198" stroke="#333" stroke-width="1.8" marker-start="url(#arrLO)" marker-end="url(#arrLO)"/>
+        <text x="605" y="217" text-anchor="middle" font-size="12.5" font-weight="700" fill="#333">effect</text>
+      </svg>
     </div>
-    <p class="fig-cap">Both analysts used cross-fitted, doubly robust estimators with gradient boosted nuisance models. The intervals do not overlap.</p>
   </div>
 
-  <p>Both estimates look precise and neither interval overlaps the other. Because the data is simulated, the true effect is known: <span data-v="single.c.truth" data-f="2"></span>. Analyst A is right and Analyst B overstates the effect by about half. In a different dataset, built in the same way but with a different reason for opting in, the ranking flips.</p>
+  <p><strong>Difference-in-differences</strong> lets the two groups start at different levels. It assumes the gap between them would have stayed the same without treatment, so any change in the gap after treatment is the effect.</p>
 
-  <p>Neither analyst made a technical mistake. They made different assumptions about why users opted in, and only one of those assumptions holds here.</p>
-</section>
+  <div class="fig">
+    <div class="fig-body">
+      <svg class="chart" role="img" aria-label="Difference-in-differences schematic" viewBox="0 0 720 360">
+        <defs>
+          <marker id="arrDID" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#333"/></marker>
+        </defs>
+        <line x1="70" y1="50" x2="70" y2="320" stroke="#999" stroke-width="1.2"/>
+        <line x1="70" y1="320" x2="670" y2="320" stroke="#999" stroke-width="1.2"/>
+        <text x="40" y="185" text-anchor="middle" font-size="13" fill="#666" transform="rotate(-90 40 185)">Engagement</text>
+        <text x="210" y="345" text-anchor="middle" font-size="13" font-weight="700" fill="#333">Before</text>
+        <text x="510" y="345" text-anchor="middle" font-size="13" font-weight="700" fill="#333">After</text>
+        <line x1="360" y1="62" x2="360" y2="320" stroke="#bbb" stroke-width="1" stroke-dasharray="5 4"/>
+        <text x="360" y="54" text-anchor="middle" font-size="12" fill="#888">treatment starts</text>
+        <polyline points="100,250 155,246 210,242 265,238 320,234 400,228.2 455,224.2 510,220.2 565,216.2 620,212.2" fill="none" stroke="#2a78d6" stroke-width="3" stroke-linejoin="round"/>
+        <text x="100" y="272" font-size="14" font-weight="700" fill="#2a78d6">Control</text>
+        <polyline points="100,180 155,176 210,172 265,168 320,164 400,118.2 455,114.2 510,110.2 565,106.2 620,102.2" fill="none" stroke="#eb6834" stroke-width="3" stroke-linejoin="round"/>
+        <text x="100" y="168" font-size="14" font-weight="700" fill="#eb6834">Treated</text>
+        <polyline points="320,164 400,158.2 455,154.2 510,150.2 565,146.2 620,142.2" fill="none" stroke="#eb6834" stroke-width="2" stroke-dasharray="6 5" opacity="0.7"/>
+        <line x1="155" y1="181" x2="155" y2="241" stroke="#aaa" stroke-width="1" marker-start="url(#arrDID)" marker-end="url(#arrDID)" opacity="0.6"/>
+        <line x1="620" y1="146" x2="620" y2="209" stroke="#aaa" stroke-width="1" marker-start="url(#arrDID)" marker-end="url(#arrDID)" opacity="0.6"/>
+        <text x="163" y="215" font-size="11" fill="#999">same gap</text>
+        <text x="628" y="181" font-size="11" fill="#999">same gap</text>
+        <line x1="642" y1="104" x2="642" y2="140" stroke="#333" stroke-width="1.8" marker-start="url(#arrDID)" marker-end="url(#arrDID)"/>
+        <text x="652" y="126" font-size="12.5" font-weight="700" fill="#333">effect</text>
+      </svg>
+    </div>
+  </div>
 
-<!-- 2 -->
-<section id="assumptions">
-  <p class="s-label">2 · Two assumptions</p>
-  <h2>Two assumptions, two failure modes</h2>
+  <p>Each design is a choice of assumption, not of estimator. Lagged-outcome regression can be estimated by regression adjustment, inverse propensity weighting, matching or double machine learning. Difference-in-differences has the same menu, from two-way fixed effects to the doubly robust estimator of Sant'Anna and Zhao. In practice DiD is usually conditional: parallel trends only need to hold among users with the same characteristics, measured before the pre-period. Pre-period outcomes are the exception. Conditioning on them pulls DiD towards the other design and its weaknesses, which <a href="#covariates">section 4</a> covers.</p>
+
+  <p>The estimator cannot rescue a wrong assumption. A doubly robust estimator is robust to misspecifying the outcome or propensity model, not to choosing the wrong design.</p>
 
   <p>A useful way to see the difference is to write the post-period outcome as a function of the pre-period outcome:</p>
 
@@ -257,20 +312,90 @@ footer { max-width: var(--w); margin: 0 auto; padding: 1.5rem; border-top: 1px s
   </ul>
 
   <p>Each design breaks where its β is wrong. That gives two failure modes.</p>
+</section>
+
+<!-- 2 -->
+<section id="failures">
+  <p class="s-label">2 · Failure modes</p>
+  <h2>Two failure modes</h2>
+
+  <p>Each design rests on an assumption about why users opted in. When the real reason breaks that assumption, the estimate is biased, and nothing in the estimator warns you.</p>
 
   <h3>Failure mode 1: a stable trait you cannot see</h3>
 
-  <p>Some users are simply more engaged than others, week after week, for reasons that are not in your data. If those users are also more (or less) likely to opt in, that trait confounds the comparison.</p>
+  <p>Some users are more engaged than others week after week, for reasons that never appear in your data. Think of how well the product fits someone's workflow. Users for whom it is a poor fit log in less every week, and they are also more likely to try new features in search of something that works. That trait drives both who opts in and how engaged they are, and you cannot measure it. It is an unobserved confounder.</p>
 
-  <p>DiD handles this. A trait that adds the same amount to every week disappears when you subtract the pre-period. Unconfoundedness only handles it as well as the lagged outcomes reveal the trait. Eight noisy weeks are an imperfect proxy, so some of the trait's influence remains and biases the estimate.</p>
+  <p>DiD handles this. A trait that adds the same amount to every week disappears when you subtract the pre-period. Lagged-outcome regression only handles it as well as the lagged outcomes reveal the trait. Eight noisy weeks are an imperfect proxy, so the model reads part of the gap as noise and predicts the treated users drifting towards the controls.</p>
+
+  <div class="fig">
+    <div class="fig-body">
+      <svg class="chart" role="img" aria-label="Failure mode 1: stable unobserved trait" viewBox="0 0 760 305">
+        <defs><marker id="arrF1g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9ca3af"/></marker><marker id="arrF1r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b42318"/></marker></defs>
+        <line x1="70" y1="40" x2="70" y2="270" stroke="#999" stroke-width="1.2"/>
+        <line x1="70" y1="270" x2="545" y2="270" stroke="#999" stroke-width="1.2"/>
+        <text x="40" y="155" text-anchor="middle" font-size="14" fill="#666" transform="rotate(-90 40 155)">Engagement</text>
+        <text x="185" y="294" text-anchor="middle" font-size="14" font-weight="700" fill="#333">Before</text>
+        <text x="420" y="294" text-anchor="middle" font-size="14" font-weight="700" fill="#333">After</text>
+        <line x1="300" y1="42" x2="300" y2="270" stroke="#bbb" stroke-width="1" stroke-dasharray="5 4"/>
+        <text x="300" y="32" text-anchor="middle" font-size="13" fill="#888">treatment starts</text>
+        <polyline points="100,110 540,100" fill="none" stroke="#2a78d6" stroke-width="3"/>
+        <polyline points="100,210 260,206.4 340,154.5 540,150" fill="none" stroke="#eb6834" stroke-width="3" stroke-linejoin="round"/>
+        <polyline points="260,206.4 540,200" fill="none" stroke="#111827" stroke-width="2" stroke-dasharray="7 5"/>
+        <polyline points="260,206.4 340,193 400,184 470,176 540,170" fill="none" stroke="#6b7280" stroke-width="2.5" stroke-dasharray="2 4" stroke-linecap="round"/>
+        <line x1="135" y1="113" x2="135" y2="205" stroke="#9ca3af" stroke-width="1.2" marker-start="url(#arrF1g)" marker-end="url(#arrF1g)"/>
+        <text x="145" y="155" font-size="13" fill="#6b7280">unobserved trait:</text>
+        <text x="145" y="172" font-size="13" fill="#6b7280">same gap every week</text>
+        <line x1="505" y1="176" x2="505" y2="198" stroke="#b42318" stroke-width="1.8" marker-start="url(#arrF1r)" marker-end="url(#arrF1r)"/>
+        <text x="497" y="192" text-anchor="end" font-size="13" font-weight="700" fill="#b42318">bias</text>
+        <text x="552" y="105" font-size="14" font-weight="700" fill="#2a78d6">Control</text>
+        <text x="552" y="155" font-size="14" font-weight="700" fill="#eb6834">Treated</text>
+        <text x="552" y="175" font-size="13" fill="#6b7280">lagged-outcome prediction</text>
+        <text x="552" y="205" font-size="13" fill="#111827">true counterfactual</text>
+      </svg>
+    </div>
+    <p class="fig-cap">The treated users sit lower every week because of a trait the data does not contain. The lagged-outcome prediction drifts towards the controls, so the estimated effect is too small.</p>
+  </div>
 
   <h3>Failure mode 2: selection on a temporary dip</h3>
 
-  <p>Users often reach for a feature when something has just gone wrong. A user who had a bad few weeks is more likely to try something new, and would have recovered anyway. Ashenfelter documented this in 1978 for job training: trainees' earnings fall just before they enrol, and recover afterwards whether the training worked or not.</p>
+  <p>Users often opt in when something has just changed. Take a win-back campaign: users whose activity has slipped are offered a free trial of a premium tier, and the ones who accept are disproportionately in a temporary slump. Many of them would have bounced back anyway. Ashenfelter (1978) found the same pattern in job training: trainees' earnings fall just before they enrol and recover afterwards, whether the training worked or not.</p>
 
-  <p>Here the dip is in the data. Unconfoundedness compares dipped treated users with controls who dipped the same way, and both groups recover. DiD subtracts a pre-period depressed by the dip, so the recovery shows up as an effect. This is where Analyst B went wrong.</p>
+  <p>Lagged-outcome regression compares dipped treated users with controls who dipped the same way, and both groups recover. DiD subtracts a pre-period depressed by the dip, so the recovery shows up as part of the effect.</p>
 
-  <h3>The simulation</h3>
+  <div class="fig">
+    <div class="fig-body">
+      <svg class="chart" role="img" aria-label="Failure mode 2: temporary dip" viewBox="0 0 760 305">
+        <defs><marker id="arrF2r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b42318"/></marker></defs>
+        <line x1="70" y1="40" x2="70" y2="270" stroke="#999" stroke-width="1.2"/>
+        <line x1="70" y1="270" x2="545" y2="270" stroke="#999" stroke-width="1.2"/>
+        <text x="40" y="155" text-anchor="middle" font-size="14" fill="#666" transform="rotate(-90 40 155)">Engagement</text>
+        <text x="185" y="294" text-anchor="middle" font-size="14" font-weight="700" fill="#333">Before</text>
+        <text x="420" y="294" text-anchor="middle" font-size="14" font-weight="700" fill="#333">After</text>
+        <line x1="300" y1="42" x2="300" y2="270" stroke="#bbb" stroke-width="1" stroke-dasharray="5 4"/>
+        <text x="300" y="32" text-anchor="middle" font-size="13" fill="#888">treatment starts</text>
+        <polyline points="100,110 540,100" fill="none" stroke="#2a78d6" stroke-width="3"/>
+        <polyline points="100,190 140,189 180,192 220,205 260,215 340,145 400,136 470,132 540,130" fill="none" stroke="#eb6834" stroke-width="3" stroke-linejoin="round"/>
+        <polyline points="260,215 340,195 400,186 470,182 540,180" fill="none" stroke="#111827" stroke-width="2" stroke-dasharray="7 5"/>
+        <polyline points="260,215 540,208.6" fill="none" stroke="#6b7280" stroke-width="2.5" stroke-dasharray="2 4" stroke-linecap="round"/>
+        <text x="225" y="240" text-anchor="middle" font-size="13" fill="#6b7280">temporary dip</text>
+        <line x1="505" y1="185" x2="505" y2="206" stroke="#b42318" stroke-width="1.8" marker-start="url(#arrF2r)" marker-end="url(#arrF2r)"/>
+        <text x="497" y="200" text-anchor="end" font-size="13" font-weight="700" fill="#b42318">bias</text>
+        <text x="552" y="105" font-size="14" font-weight="700" fill="#2a78d6">Control</text>
+        <text x="552" y="135" font-size="14" font-weight="700" fill="#eb6834">Treated</text>
+        <text x="552" y="184" font-size="13" fill="#111827">true counterfactual</text>
+        <text x="552" y="213" font-size="13" fill="#6b7280">DiD prediction</text>
+      </svg>
+    </div>
+    <p class="fig-cap">The treated users opt in at the bottom of a dip and would have recovered anyway. DiD projects the dipped level forward, so the recovery is counted as part of the effect.</p>
+  </div>
+
+  <p>The same thing happens in reverse. A user in an unusually busy patch, say around a project deadline, is more likely to switch on power features, and their engagement would have fallen back afterwards. Selection on a temporary spike makes DiD understate the effect instead. The simulation uses a dip, but the lesson holds either way: DiD fails whenever users opt in during a temporary departure from their normal level.</p>
+</section>
+
+<!-- 3 -->
+<section id="simulation">
+  <p class="s-label">3 · The simulation</p>
+  <h2>A simulation with a known answer</h2>
 
   <p>To test this we need data where the true effect is known. The simulation builds a weekly panel of 10,000 users. Each user's engagement has four parts: a level set by observed covariates and a hidden stable trait; a trend that depends on the observed covariates; shared seasonality; and a transitory shock that decays by 20% a week. Every user gets a candidate week. Treated users opt in that week, and controls are users who were eligible that week and did not.</p>
 
@@ -289,14 +414,19 @@ footer { max-width: var(--w); margin: 0 auto; padding: 1.5rem; border-top: 1px s
     </table>
   </div>
 
+  <p>Both designs are estimated the same way, with <a href="https://arxiv.org/abs/1608.00060" target="_blank" rel="noopener">double machine learning</a> in <a href="https://docs.doubleml.org/" target="_blank" rel="noopener">DoubleML</a>. Lagged-outcome regression uses <code>DoubleMLIRM</code> with the ATT score on mean engagement in weeks 0 to 3. DiD uses <code>DoubleMLDIDBinary</code> on the pre-period mean (weeks -4 to -1) and the post-period mean (weeks 0 to 3). Both use LightGBM for the outcome and propensity models, five-fold cross-fitting and propensities clipped at 0.01.</p>
+
   <div class="fig">
     <div class="fig-hdr">
       <div class="fig-title">Raw mean engagement around the opt-in week</div>
       <div class="fig-sub">Treated and control, event time in weeks, 95% bands</div>
     </div>
     <div class="fig-body">
-      <div class="tabs" data-chart="means"></div>
-      <svg class="chart" id="chartMeans"></svg>
+      <div class="legend">
+        <span class="li"><svg width="20" height="4"><line x1="0" y1="2" x2="20" y2="2" stroke="#eb6834" stroke-width="2.5"/></svg>Treated</span>
+        <span class="li"><svg width="20" height="4"><line x1="0" y1="2" x2="20" y2="2" stroke="#2a78d6" stroke-width="2.5"/></svg>Control</span>
+      </div>
+      <div class="panels" id="panelsMeans"></div>
     </div>
     <p class="fig-cap">Week 0 is the week the treated users opted in. In b the treated sit lower throughout but move in parallel with controls. In c and d they dip into the opt-in week.</p>
   </div>
@@ -309,37 +439,18 @@ footer { max-width: var(--w); margin: 0 auto; padding: 1.5rem; border-top: 1px s
       <div class="fig-sub">Treated users only: actual, true counterfactual and each design's implied counterfactual</div>
     </div>
     <div class="fig-body">
-      <div class="tabs" data-chart="cf"></div>
       <div class="legend">
         <span class="li"><svg width="20" height="4"><line x1="0" y1="2" x2="20" y2="2" stroke="#eb6834" stroke-width="2.5"/></svg>Treated, actual</span>
         <span class="li"><svg width="20" height="4"><line x1="0" y1="2" x2="20" y2="2" stroke="#111827" stroke-width="2" stroke-dasharray="4 3"/></svg>True counterfactual</span>
         <span class="li"><svg width="20" height="4"><line x1="0" y1="2" x2="20" y2="2" stroke="#2a78d6" stroke-width="2.5"/></svg>Unconfoundedness</span>
         <span class="li"><svg width="20" height="4"><line x1="0" y1="2" x2="20" y2="2" stroke="#1baf7a" stroke-width="2.5"/></svg>DiD</span>
       </div>
-      <svg class="chart" id="chartCF"></svg>
+      <div class="panels" id="panelsCF"></div>
     </div>
-    <p class="fig-cap"><span id="cfCap"></span> The DiD line starts at week -4: it is the treated users' average over weeks -4 to -1 plus the change seen in weighted controls.</p>
+    <p class="fig-cap">The DiD line starts at week -4: it is the treated users' average over weeks -4 to -1 plus the change seen in weighted controls.</p>
   </div>
 
   <p>In scenario c the DiD line stays down at the depressed pre-period level, while the true counterfactual climbs back as the dip wears off. In scenario b the unconfoundedness line sits too high: it borrows controls who looked similar over eight weeks but had more of the hidden trait.</p>
-</section>
-
-<!-- 3 -->
-<section id="churn">
-  <p class="s-label">3 · An aside</p>
-  <h2>Why "just switch to DiD" fails for churn</h2>
-
-  <p>A common reaction to the stable trait problem is to use DiD whenever selection is a worry. For churn, one of the most common outcomes in product work, that does not work.</p>
-
-  <p>Churn is absorbing: once a user churns, they stay churned. To be offered a feature, a user has to be active. So among everyone in the analysis, treated or control, churn before the opt-in week is zero by construction.</p>
-
-  <ul class="pts">
-    <li><strong>There is no pre-trend to check.</strong> Both groups sit flat at zero before week 0, which says nothing about whether their trends would have matched.</li>
-    <li><strong>The DiD collapses.</strong> Subtracting zero from both groups leaves a plain comparison of post-period churn rates, which is the naive estimate.</li>
-    <li><strong>The sample is filtered on survival.</strong> Users who would have churned before their candidate week never enter either group. If opting in depends on recent engagement, that filter treats the groups differently.</li>
-  </ul>
-
-  <p>For churn, the identification has to come from conditioning on the history: unconfoundedness with lagged engagement as covariates, or a survival model with time-varying covariates. The rest of this article uses weekly engagement, which is not absorbing, so both designs can be compared on the same data.</p>
 </section>
 
 <!-- 4 -->
@@ -380,30 +491,11 @@ footer { max-width: var(--w); margin: 0 auto; padding: 1.5rem; border-top: 1px s
 <!-- 5 -->
 <section id="diagnostic">
   <p class="s-label">5 · The diagnostic</p>
-  <h2>Event-time plots: balance vs placebo</h2>
+  <h2>Event-time plots: pre-trends and placebo</h2>
 
   <p>If the two designs fail in different situations, the useful question is which situation you are in. The pre-period is the only place to look, since nothing has been treated there yet. It has to be used carefully.</p>
 
-  <h3>Balance is mechanical</h3>
-
-  <p>The usual first check after weighting is covariate balance. Fit a propensity model on the history through week -1, weight the controls, and confirm the treated and weighted control groups look alike.</p>
-
-  <div class="fig">
-    <div class="fig-hdr">
-      <div class="fig-title">Balance after weighting, scenario c</div>
-      <div class="fig-sub">Standardised mean difference, treated minus control</div>
-    </div>
-    <div class="fig-body">
-      <div class="legend">
-        <span class="li"><svg width="10" height="10"><circle cx="5" cy="5" r="4.5" fill="#9ca3af"/></svg>Raw</span>
-        <span class="li"><svg width="10" height="10"><circle cx="5" cy="5" r="4.5" fill="#eb6834"/></svg>Weighted</span>
-      </div>
-      <svg class="chart" id="chartBalance"></svg>
-    </div>
-    <p class="fig-cap">Dotted lines mark ±0.1, a common threshold for acceptable balance.</p>
-  </div>
-
-  <p>It always passes. The weights were fitted to balance exactly these features, so balance on them tests nothing. The same chart looks as good in scenario b, where the design is biased. A real check has to look at something the propensity model did not see.</p>
+  <p>The usual check is covariate balance after weighting. It always passes, because the weights were fitted to balance exactly those features, including in scenario b where the design is biased. A real check has to look at something the propensity model did not see.</p>
 
   <h3>The DiD check: pre-trends</h3>
 
@@ -435,13 +527,9 @@ footer { max-width: var(--w); margin: 0 auto; padding: 1.5rem; border-top: 1px s
 
   <p>In b the gap drifts: matching on four noisy early weeks leaves a trait difference that keeps showing up. That drift is the signature of a hidden stable trait.</p>
 
-  <p>In c the placebo fails too, even though unconfoundedness holds at week 0. Selection in c runs on engagement in weeks -3 to -1, and a placebo that stops at week -5 drops exactly those weeks. So no pre-period check can separate "users opted in after a dip" (c) from "users opted in after a dip and have a lower hidden trait" (d). The data cannot settle it, which is why the decision rule ends with bounds.</p>
-</section>
+  <p>In c the placebo fails too, even though unconfoundedness holds at week 0. Selection in c runs on engagement in weeks -3 to -1, and a placebo that stops at week -5 drops exactly those weeks. So no pre-period check can separate "users opted in after a dip" (c) from "users opted in after a dip and have a lower hidden trait" (d).</p>
 
-<!-- 6 -->
-<section id="rule">
-  <p class="s-label">6 · Decision rule</p>
-  <h2>Flat pre-trends, dips and bounds</h2>
+  <h3 id="rule">The decision rule</h3>
 
   <div class="dtable-wrap">
     <table class="dtable">
@@ -454,7 +542,7 @@ footer { max-width: var(--w); margin: 0 auto; padding: 1.5rem; border-top: 1px s
     </table>
   </div>
 
-  <p>The last row needs a word of explanation. When pre-trends dip, DiD is biased, so unconfoundedness is the better bet. But the dip also means you cannot rule out a stable trait on top of it, because the placebo cannot tell c from d. <a href="https://arxiv.org/abs/1903.06286" target="_blank" rel="noopener">Ding and Li (2019)</a>, building on Angrist and Pischke, show that under conditions like these the two estimates bracket the truth: with negative selection, unconfoundedness errs low and DiD errs high. Reporting both gives a range that holds whichever of c or d you are in.</p>
+  <p>The last row needs a word of explanation. A dip rules out DiD, but the placebo cannot rule out a stable trait on top of the dip. <a href="https://arxiv.org/abs/1903.06286" target="_blank" rel="noopener">Ding and Li (2019)</a>, building on Angrist and Pischke, show that under conditions like these the two estimates bracket the truth: with negative selection, unconfoundedness errs low and DiD errs high. Reporting both gives a range that holds whichever of c or d you are in.</p>
 
   <div class="callout"><p>Pick the design from the pre-period data, not from the textbook you learned on. When the data cannot decide, report both estimates as bounds.</p></div>
 
@@ -467,42 +555,11 @@ wide = to_wide(panel, user="user_id", time="event_time", treated="treated",
                outcome="sessions", covariates=["tenure", "platform"], week="week")
 out = diagnose(wide)
 print(out["reading"])</code></pre>
-
-  <div class="dtable-wrap">
-    <table class="dtable" id="tableDiagnose">
-      <caption>What diagnose returns on one simulated dataset per scenario</caption>
-    </table>
-  </div>
 </section>
 
-<!-- 7 -->
-<section id="estimation">
-  <p class="s-label">7 · Estimation</p>
-  <h2>DML for either design</h2>
-
-  <p>Both designs in this study use the same estimation machinery, and that is deliberate.</p>
-
-  <ul class="pts">
-    <li><strong>Unconfoundedness:</strong> <code>DoubleMLIRM</code> with the ATT score. The outcome is mean engagement in weeks 0 to 3.</li>
-    <li><strong>DiD:</strong> <code>DoubleMLDIDBinary</code> on a two-period panel of the pre-period mean (weeks -4 to -1) and the post-period mean (weeks 0 to 3). This is the doubly robust DiD of <a href="https://arxiv.org/abs/1812.01723" target="_blank" rel="noopener">Sant'Anna and Zhao (2020)</a>.</li>
-  </ul>
-
-  <p>Both use <a href="https://arxiv.org/abs/1608.00060" target="_blank" rel="noopener">double machine learning</a> with LightGBM for the outcome and propensity models, five-fold cross-fitting and propensities clipped at 0.01. Cross-fitting stops the flexible models from overfitting into the estimate, and the doubly robust score keeps the estimate consistent if either nuisance model is right.</p>
-
-  <p>None of that protects against a wrong assumption. A doubly robust estimator is robust to misspecifying the nuisance models, not to the design being wrong. In scenario c, Analyst B's DiD had well-fitted nuisance models and was still off by half.</p>
-
-  <h3>Overlap</h3>
-
-  <p>The ATT weights each control by p/(1-p), so controls who look like typical treated users carry a lot of weight. When selection is strong, a few controls can dominate. In scenario d the effective sample size of the control weights for the unconfoundedness design falls to about 700 out of 8,000 controls. Nothing needed clipping here, but it is worth checking on real data before trusting the interval.</p>
-
-  <h3>Sensitivity analysis does not choose the design</h3>
-
-  <p>DoubleML includes the <a href="https://arxiv.org/abs/2112.13398" target="_blank" rel="noopener">omitted variable bias bounds of Chernozhukov et al.</a>, which ask how strong a hidden confounder would need to be to move the estimate. These are worth reporting. They do not tell you which design to trust. In scenario c the biased DiD estimate has a robustness value of 0.25, higher than the valid unconfoundedness estimate at 0.19. Sensitivity analysis measures how fragile an estimate is to unobserved confounding. It cannot see a broken parallel trends assumption. The pre-period checks can.</p>
-</section>
-
-<!-- 8 -->
+<!-- 6 -->
 <section id="results">
-  <p class="s-label">8 · Results</p>
+  <p class="s-label">6 · Results</p>
   <h2>Simulation results</h2>
 
   <p>A single dataset can be lucky. To separate bias from noise, each scenario was simulated <span data-v="mc.reps.a"></span> times with 10,000 users, and every design was estimated on every replication.</p>
@@ -519,16 +576,10 @@ print(out["reading"])</code></pre>
       <div class="fig-sub">Dot: mean. Thick bar: middle 50%. Thin bar: middle 95%. Dashed: true effect.</div>
     </div>
     <div class="fig-body"><div class="panels" id="panelsMC"></div></div>
-    <p class="fig-cap">The naive comparison is left off the chart: its bias runs from <span data-v="mc.methods.a.naive_unconf.bias" data-f="s2"></span> to <span data-v="mc.methods.d.naive_unconf.bias" data-f="s2"></span> and is in the table below.</p>
+    <p class="fig-cap">The naive comparison is left off the chart: its bias runs from <span data-v="mc.methods.a.naive_unconf.bias" data-f="s2"></span> to <span data-v="mc.methods.d.naive_unconf.bias" data-f="s2"></span>.</p>
   </div>
 
-  <div class="dtable-wrap">
-    <table class="dtable" id="tableMC">
-      <caption>Bias, RMSE and 95% interval coverage by design and scenario</caption>
-    </table>
-  </div>
-
-  <p>The results line up with the table in section 2. Each design is unbiased with close to nominal coverage where its assumption holds, and badly biased where it does not. A biased design does not just miss: its intervals stay narrow, so coverage collapses. An analyst would see a confident wrong answer, not a vague one.</p>
+  <p>The results line up with the table in section 3. Each design is unbiased with close to nominal coverage where its assumption holds, and badly biased where it does not. A biased design does not just miss: its intervals stay narrow, so coverage collapses. An analyst would see a confident wrong answer, not a vague one.</p>
 
   <p>In scenario d both designs are biased in opposite directions, and the truth sits between them in <span data-v="mc.bracket_d" data-f="pct"></span> of replications.</p>
 
@@ -552,8 +603,21 @@ print(out["reading"])</code></pre>
     <p>Because covariates are part of the assumption. Outcome lags make unconfoundedness plausible, and the same lags break DiD when the groups differ in level. Section 4 shows DiD with lags is as biased as unconfoundedness in scenario b.</p>
   </details>
 
+  <details class="faq"><summary>Can I use DiD when the outcome is churn?</summary>
+    <p>Not directly. Churn is absorbing, and a user has to be active to be offered a feature, so pre-period churn is zero for everyone in the analysis. That causes three problems. There is no pre-trend to check. Subtracting zero from both groups leaves the naive comparison of post-period churn. And the sample is filtered on survival, which can treat the groups differently if opting in depends on recent engagement.</p>
+    <p>For churn, condition on the history instead: unconfoundedness with lagged engagement as covariates, or a survival model with time-varying covariates. This article uses weekly engagement, which is not absorbing, so both designs can be compared on the same data.</p>
+  </details>
+
   <details class="faq"><summary>Does the choice of machine learning model matter?</summary>
     <p>Much less than the design. Swapping LightGBM for scikit-learn's HistGradientBoosting moves the estimates in scenarios b and c by at most 0.05, against design biases of 0.7 to 1.0. The flexible models matter for getting the nuisance functions right, and they cannot fix an assumption that does not hold.</p>
+  </details>
+
+  <details class="faq"><summary>Can sensitivity analysis tell me which design to trust?</summary>
+    <p>No. DoubleML includes the <a href="https://arxiv.org/abs/2112.13398" target="_blank" rel="noopener">omitted variable bias bounds of Chernozhukov et al.</a>, which ask how strong a hidden confounder would need to be to move the estimate. They are worth reporting, but they measure fragility to unobserved confounding and cannot see a broken parallel trends assumption. In scenario c the biased DiD estimate has a robustness value of 0.25, higher than the valid unconfoundedness estimate at 0.19. The pre-period checks are what choose the design.</p>
+  </details>
+
+  <details class="faq"><summary>What about overlap?</summary>
+    <p>The ATT weights each control by p/(1-p), so controls who look like typical treated users carry a lot of weight, and when selection is strong a few can dominate. In scenario d the effective sample size of the control weights for the unconfoundedness design falls to about 700 out of 8,000 controls. Nothing needed clipping here, but check the weights on real data before trusting the interval.</p>
   </details>
 
   <details class="faq"><summary>What if users opt in at different times?</summary>
@@ -578,7 +642,7 @@ print(out["reading"])</code></pre>
   <p class="s-label">Bringing it together</p>
   <h2>The assumption is the decision</h2>
 
-  <p>Analyst A and Analyst B used equally sophisticated estimators. One was right because their assumption matched how users chose to opt in. With different selection, the other would have been.</p>
+  <p>Both designs used equally sophisticated estimators. Which one was right depended only on whether its assumption matched how users chose to opt in.</p>
 
   <ul class="pts">
     <li><strong>Separate the estimator from the design.</strong> DML is a way to estimate. Unconfoundedness and parallel trends are what make the estimate mean something.</li>
@@ -743,37 +807,49 @@ function buildTabs() {
   });
 }
 
-function drawMeans() {
-  const s = get(`single.${tabState.means}`);
-  if (!s) return;
-  lineChart(document.getElementById('chartMeans'), {
-    W: widthOf(), H: narrow() ? 230 : 270, mr: narrow() ? 58 : 66,
-    series: [
-      { y: s.means.control.mean, lo: s.means.control.lo, hi: s.means.control.hi, color: COL.control, label: 'Control' },
-      { y: s.means.treated.mean, lo: s.means.treated.lo, hi: s.means.treated.hi, color: COL.treated, label: 'Treated' },
-    ],
-  });
+function scenarioPanels(id, subs, seriesFn) {
+  const box = document.getElementById(id);
+  if (!box) return;
+  box.innerHTML = '';
+  for (const s of 'abcd') {
+    const d = get(`single.${s}`);
+    if (!d) continue;
+    const div = document.createElement('div');
+    div.innerHTML = `<div class="panel-title">${SC[s]}</div><div class="panel-sub">${subs[s]}</div>`;
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('class', 'chart');
+    div.appendChild(svg);
+    box.appendChild(div);
+    lineChart(svg, { W: 340, H: 200, fs: { axis: 11, lab: 11, val: 11 }, ml: 36, series: seriesFn(d) });
+  }
 }
 
-const CF_CAP = {
-  a: 'Scenario a: both implied counterfactuals track the truth, so both designs recover the effect.',
-  b: 'Scenario b: the DiD line tracks the truth. The unconfoundedness line sits too high, so it understates the effect.',
-  c: 'Scenario c: the unconfoundedness line tracks the truth as it recovers from the dip. The DiD line stays at the depressed level, so it overstates the effect.',
-  d: 'Scenario d: the truth sits between the two implied counterfactuals.',
+const MEANS_SUB = {
+  a: 'Similar levels and trends',
+  b: 'Lower level, parallel trend',
+  c: 'Dip into the opt-in week',
+  d: 'Lower level and a dip',
+};
+function drawMeans() {
+  scenarioPanels('panelsMeans', MEANS_SUB, s => [
+    { y: s.means.control.mean, lo: s.means.control.lo, hi: s.means.control.hi, color: COL.control },
+    { y: s.means.treated.mean, lo: s.means.treated.lo, hi: s.means.treated.hi, color: COL.treated },
+  ]);
+}
+
+const CF_SUB = {
+  a: 'Both designs track the truth',
+  b: 'DiD tracks the truth; unconfoundedness sits too high',
+  c: 'Unconfoundedness tracks the recovery; DiD stays low',
+  d: 'The truth sits between the two',
 };
 function drawCF() {
-  const key = tabState.cf, s = get(`single.${key}`);
-  if (!s) return;
-  lineChart(document.getElementById('chartCF'), {
-    W: widthOf(), H: narrow() ? 240 : 290,
-    series: [
-      { y: s.cf.did_cf.map((v, i) => (ET[i] >= -4 ? v : null)), color: COL.aqua },
-      { y: s.cf.unconf_cf, color: COL.control },
-      { y: s.cf.true_y0, color: COL.ink, dash: '5 4', w: 2, dots: false },
-      { y: s.cf.actual, color: COL.treated },
-    ],
-  });
-  document.getElementById('cfCap').textContent = CF_CAP[key];
+  scenarioPanels('panelsCF', CF_SUB, s => [
+    { y: s.cf.did_cf.map((v, i) => (ET[i] >= -4 ? v : null)), color: COL.aqua },
+    { y: s.cf.unconf_cf, color: COL.control },
+    { y: s.cf.true_y0, color: COL.ink, dash: '5 4', w: 2, dots: false },
+    { y: s.cf.actual, color: COL.treated },
+  ]);
 }
 
 function drawLags() {
@@ -806,7 +882,7 @@ function drawLags() {
 function drawBalance() {
   const b = get('single.c.balance');
   const svg = document.getElementById('chartBalance');
-  if (!b) return;
+  if (!b || !svg) return;
   clear(svg);
   const W = widthOf(), fs = FS(), rowH = 22, m = { l: 110, r: 18, t: 6, b: 36 };
   const H = m.t + m.b + rowH * b.features.length;
@@ -874,7 +950,7 @@ function mcPanels() {
 function fillTables() {
   const mc = get('mc.methods');
   const t = document.getElementById('tableMC');
-  if (mc) {
+  if (mc && t) {
     const ks = ['unconf', 'did', 'did_lags', 'naive_unconf'];
     const nm = { unconf: 'Unconf.', did: 'DiD', did_lags: 'DiD + lags', naive_unconf: 'Naive' };
     let h = t.querySelector('caption').outerHTML + '<thead><tr><th>Scenario</th><th>Design</th><th class="num">Bias</th><th class="num">RMSE</th><th class="num">Coverage</th></tr></thead><tbody>';
@@ -896,6 +972,7 @@ function fillTables() {
     tr.innerHTML = h + '</tbody>';
   }
   const td = document.getElementById('tableDiagnose');
+  if (!td) return;
   const rd = { 'false,false': 'Either design', 'false,true': 'DiD', 'true,false': 'Unconfoundedness, DiD as bound', 'true,true': 'Unconfoundedness, DiD as bound' };
   let h = td.querySelector('caption').outerHTML + '<thead><tr><th>Scenario</th><th>Pre-trend check</th><th>Placebo</th><th>Reading</th></tr></thead><tbody>';
   for (const s of 'abcd') {
@@ -911,7 +988,7 @@ function fillValues() {
 }
 
 function drawAll() {
-  drawHook(); drawMeans(); drawCF(); drawLags(); drawBalance();
+  drawMeans(); drawCF(); drawLags(); drawBalance();
   gapPanels('panelsPretrend', 'pretrend', 'pretrend_z');
   gapPanels('panelsPlacebo', 'placebo', 'placebo_z');
   mcPanels();
