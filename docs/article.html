@@ -511,6 +511,8 @@ footer { max-width: var(--w); margin: 0 auto; padding: 1.5rem; border-top: 1px s
     </table>
   </div>
 
+  <p>A failed check rules out this DiD, not every DiD. If the dip is short, a pre-period that ends before it can still work, and sensitivity methods such as <a href="https://restud.com/a-more-credible-approach-to-parallel-trends" target="_blank" rel="noopener">Rambachan and Roth (2023)</a> show how far the estimate moves if parallel trends is violated by a bounded amount.</p>
+
   <p>Why do the two estimates work as bounds? If either assumption holds, plus a stationarity condition on the outcome, they bracket the truth (<a href="https://arxiv.org/abs/1903.06286" target="_blank" rel="noopener">Ding and Li 2019</a>, building on Angrist and Pischke). Here the treated users start lower, so lagged-outcome regression errs low and DiD errs high. With positive selection the directions flip. Scenario d, where both assumptions fail, is outside that result. The truth still fell between the two estimates in <span data-v="mc.bracket_d" data-f="pct">100%</span> of replications, but that is a property of this simulation, not a guarantee.</p>
 </section>
 
@@ -539,6 +541,8 @@ footer { max-width: var(--w); margin: 0 auto; padding: 1.5rem; border-top: 1px s
     <li><strong>Let the pre-trend choose.</strong> Flat: DiD. Dip: lagged-outcome regression, with DiD as the other bound.</li>
   </ul>
 
+  <p>The simulation shows that each design fails in a predictable situation, that a biased design still produces tight intervals, and that the pre-trend check picks out the dip. It does not show how often each situation occurs in real products. It uses one data-generating process, selection towards less engaged users, one estimator library, and an outcome that is not absorbing. On your own data, start with how users came to opt in, then look at the pre-trend.</p>
+
   <p>The simulator, estimators and diagnostics are in the <a href="https://github.com/raz1470/unconfoundedness-vs-parallel-trends" target="_blank" rel="noopener">companion repo</a>, along with a notebook that reproduces every figure here. The diagnostics take a long panel with your own column names, so the checks in section 5 run on real data unchanged.</p>
 
   <h3>References</h3>
@@ -549,6 +553,7 @@ footer { max-width: var(--w); margin: 0 auto; padding: 1.5rem; border-top: 1px s
     <li>Chernozhukov, V. et al. (2022). <a href="https://arxiv.org/abs/2112.13398" target="_blank" rel="noopener">Long story short: omitted variable bias in causal machine learning</a>. NBER Working Paper 30302.</li>
     <li>Daw, J. and Hatfield, L. (2018). <a href="https://pubmed.ncbi.nlm.nih.gov/29957834/" target="_blank" rel="noopener">Matching and regression to the mean in difference-in-differences analysis</a>. <em>Health Services Research</em>, 53(6), 4138–4156.</li>
     <li>Ding, P. and Li, F. (2019). <a href="https://arxiv.org/abs/1903.06286" target="_blank" rel="noopener">A bracketing relationship between difference-in-differences and lagged-dependent-variable adjustment</a>. <em>Political Analysis</em>, 27(4), 605–615.</li>
+    <li>Rambachan, A. and Roth, J. (2023). <a href="https://restud.com/a-more-credible-approach-to-parallel-trends" target="_blank" rel="noopener">A more credible approach to parallel trends</a>. <em>Review of Economic Studies</em>, 90(5), 2555–2591.</li>
     <li>Roth, J. (2022). <a href="https://www.aeaweb.org/articles?id=10.1257/aeri.20210236" target="_blank" rel="noopener">Pretest with caution: event-study estimates after testing for parallel trends</a>. <em>American Economic Review: Insights</em>, 4(3), 305–322.</li>
     <li>Sant'Anna, P. and Zhao, J. (2020). <a href="https://arxiv.org/abs/1812.01723" target="_blank" rel="noopener">Doubly robust difference-in-differences estimators</a>. <em>Journal of Econometrics</em>, 219(1), 101–122.</li>
   </ul>
