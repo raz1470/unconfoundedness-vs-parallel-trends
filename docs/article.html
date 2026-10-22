@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Unconfoundedness vs Parallel Trends by Ryan O'Sullivan</title>
+<title>Difference-in-Differences vs Lagged-Outcome Regression by Ryan O'Sullivan</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -157,6 +157,11 @@ svg.chart { display: block; width: 100%; height: auto; }
 .kbox .lab { font-size: .74rem; color: var(--muted); line-height: 1.4; }
 
 .dtable-wrap { overflow-x: auto; margin: 1.5rem 0; }
+ol.pts { margin: 0 0 1.4rem 1.4rem; padding: 0; max-width: 64ch; }
+ol.pts li { margin-bottom: .45rem; padding-left: .25rem; }
+.rulebox { overflow-x: auto; margin: 1.5rem 0; border: 2px solid var(--text); border-radius: 8px; padding: .75rem 1rem; }
+table.rule { font-size: .95rem; }
+table.rule td:nth-child(2) { font-size: 1.15rem; text-align: center; }
 table.dtable { border-collapse: collapse; width: 100%; font-size: .86rem; }
 .dtable caption { text-align: left; font-size: .8rem; color: var(--muted); padding-bottom: .4rem; }
 .dtable th, .dtable td { padding: .45rem .6rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
@@ -184,8 +189,8 @@ footer { max-width: var(--w); margin: 0 auto; padding: 1.5rem; border-top: 1px s
 <body>
 
 <header class="hdr">
-  <h1>Unconfoundedness vs Parallel Trends</h1>
-  <p class="tagline">Which assumption fits your self-selected treatment? Same data, same estimator, two different answers. The assumption decides which one is right.</p>
+  <h1>Difference-in-Differences vs Lagged-Outcome Regression</h1>
+  <p class="tagline">A simulation study and a pre-period check for choosing the right design for self-selected treatments in product analytics.</p>
   <p class="byline">Ryan O'Sullivan · Code and notebook on <a href="https://github.com/raz1470/unconfoundedness-vs-parallel-trends" style="color:#cbd5e1">GitHub</a></p>
 </header>
 
@@ -195,7 +200,7 @@ footer { max-width: var(--w); margin: 0 auto; padding: 1.5rem; border-top: 1px s
   <a href="#simulation">3 · Simulation</a>
   <a href="#covariates">4 · Covariates</a>
   <a href="#diagnostic">5 · The diagnostic</a>
-  <a href="#results">6 · Results</a>
+  <a href="#rule">6 · Decision rule</a>
   <a href="#faq">Questions</a>
   <a href="#together">Bringing it together</a>
 </nav>
@@ -209,10 +214,10 @@ footer { max-width: var(--w); margin: 0 auto; padding: 1.5rem; border-top: 1px s
   <li><strong>Difference-in-differences</strong>, learned from <a href="https://mixtape.scunning.com/" target="_blank" rel="noopener">The Mixtape</a> and brought up to date by papers like Sant'Anna and Zhao's <a href="https://arxiv.org/abs/1812.01723" target="_blank" rel="noopener">Doubly Robust Difference-in-Differences Estimators</a> (2020).</li>
 </ul>
 
-<p>Both are reasonable, and both can be estimated with the same doubly robust machinery. <a href="https://docs.doubleml.org/" target="_blank" rel="noopener">DoubleML</a> implements both. That is the point this article is built around: the estimator and the identifying assumption are separate choices, and the assumption decides whether the answer is right.</p>
+<p>Both are reasonable, and both can be estimated with the same doubly robust machinery (<a href="https://docs.doubleml.org/" target="_blank" rel="noopener">DoubleML</a>, for example, implements both). That is the point this article is built around: the estimator and the identifying assumption are separate choices, and the assumption decides whether the answer is right.</p>
 
 <ul class="pts">
-  <li>Lagged-outcome regression assumes no unobserved confounding once you condition on past outcomes and covariates.</li>
+  <li>Lagged-outcome regression assumes unconfoundedness: no unobserved confounding once you condition on past outcomes and covariates.</li>
   <li>Difference-in-differences assumes parallel trends: without treatment, treated and control outcomes would have moved together.</li>
 </ul>
 
@@ -220,12 +225,9 @@ footer { max-width: var(--w); margin: 0 auto; padding: 1.5rem; border-top: 1px s
 
 <!-- 1 -->
 <section id="assumptions">
-  <p class="s-label">1 · Two designs</p>
-  <h2>Lagged outcomes and difference-in-differences</h2>
+  <h2>1. Lagged outcomes and difference-in-differences</h2>
 
-  <p>Let's look more closely at what lagged-outcome regression and difference-in-differences each do.</p>
-
-  <p><strong>Lagged-outcome regression</strong> compares treated and control users who had the same engagement history and characteristics before treatment. After reweighting so those histories match, the difference in post-period engagement is the effect.</p>
+  <p><strong>Lagged-outcome regression</strong> compares treated and control users who had the same engagement history and characteristics before treatment. After re-weighting or adjusting so those histories match, the difference in post-period engagement is the effect.</p>
 
   <div class="fig">
     <div class="fig-body">
@@ -266,7 +268,7 @@ footer { max-width: var(--w); margin: 0 auto; padding: 1.5rem; border-top: 1px s
     </div>
   </div>
 
-  <p><strong>Difference-in-differences</strong> lets the two groups start at different levels. It assumes the gap between them would have stayed the same without treatment, so any change in the gap after treatment is the effect.</p>
+  <p><strong>Difference-in-differences</strong> lets the two groups start at different levels. It assumes the gap between them would have stayed the same without treatment, so any change in the gap after treatment is the effect. In practice DiD is usually conditional: parallel trends only need to hold among users with the same characteristics, measured before the pre-period.</p>
 
   <div class="fig">
     <div class="fig-body">
@@ -296,19 +298,19 @@ footer { max-width: var(--w); margin: 0 auto; padding: 1.5rem; border-top: 1px s
     </div>
   </div>
 
-  <p>Each design is a choice of assumption, not of estimator. Lagged-outcome regression can be estimated by regression adjustment, inverse propensity weighting, matching or double machine learning. Difference-in-differences has the same menu, from two-way fixed effects to the doubly robust estimator of Sant'Anna and Zhao. In practice DiD is usually conditional: parallel trends only need to hold among users with the same characteristics, measured before the pre-period. Pre-period outcomes are the exception. Conditioning on them pulls DiD towards the other design and its weaknesses, which <a href="#covariates">section 4</a> covers.</p>
+  <p>Lagged-outcome regression can be estimated by regression adjustment, inverse propensity weighting or double machine learning. Difference-in-differences has the same menu, from two-way fixed effects to doubly robust DiD.</p>
 
-  <p>The estimator cannot rescue a wrong assumption. A doubly robust estimator is robust to misspecifying the outcome or propensity model, not to choosing the wrong design.</p>
+  <p>The estimator cannot rescue a wrong assumption. A doubly robust estimator is robust to misspecifying the outcome or propensity model, not to its identifying assumption failing.</p>
 
   <p>A useful way to see the difference is to write the post-period outcome as a function of the pre-period outcome:</p>
 
   <div class="eqn">Y<sub>post</sub> = α + τD + β Y<sub>pre</sub> + γ′X + ε</div>
 
-  <p>Here D is the treatment, τ the effect and X the observed covariates.</p>
+  <p>Here D is the treatment, τ the effect and X the observed covariates. τ is the treated–control gap after adjusting for Y<sub>pre</sub> and X. This linear form is the standard way to compare the designs (Angrist and Pischke 2009, section 5.4; Ding and Li 2019). The estimators in this article are more flexible, but the intuition carries over.</p>
 
   <ul class="pts">
-    <li><strong>Difference-in-differences fixes β = 1.</strong> It subtracts each user's whole pre-period level, so anything that is stable within a user cancels out.</li>
-    <li><strong>Unconfoundedness lets the data estimate β.</strong> If engagement is partly transient, β is below 1 and only part of an unusually low pre-period carries forward.</li>
+    <li><strong>Difference-in-differences fixes β = 1.</strong> Moving Y<sub>pre</sub> to the left-hand side gives a regression of each user's change on D. Anything constant within a user cancels out, and τ is the difference in average change between treated and control.</li>
+    <li><strong>Lagged-outcome regression lets the data estimate β.</strong> If engagement is partly transient, β is below 1 and only part of an unusually low pre-period carries forward.</li>
   </ul>
 
   <p>Each design breaks where its β is wrong. That gives two failure modes.</p>
@@ -316,90 +318,40 @@ footer { max-width: var(--w); margin: 0 auto; padding: 1.5rem; border-top: 1px s
 
 <!-- 2 -->
 <section id="failures">
-  <p class="s-label">2 · Failure modes</p>
-  <h2>Two failure modes</h2>
+  <h2>2. Two failure modes</h2>
 
-  <p>Each design rests on an assumption about why users opted in. When the real reason breaks that assumption, the estimate is biased, and nothing in the estimator warns you.</p>
+  <h3>Failure mode 1: a time-invariant confounder</h3>
 
-  <h3>Failure mode 1: a stable trait you cannot see</h3>
+  <p>Take a free trial of a premium tier. Higher-income users are more likely to start it, and they also tend to engage more every week. Income rarely changes over a few months and is usually not in your data. That makes it an unobserved, time-invariant confounder.</p>
 
-  <p>Some users are more engaged than others week after week, for reasons that never appear in your data. Think of how well the product fits someone's workflow. Users for whom it is a poor fit log in less every week, and they are also more likely to try new features in search of something that works. That trait drives both who opts in and how engaged they are, and you cannot measure it. It is an unobserved confounder.</p>
-
-  <p>DiD handles this. A trait that adds the same amount to every week disappears when you subtract the pre-period. Lagged-outcome regression only handles it as well as the lagged outcomes reveal the trait. Eight noisy weeks are an imperfect proxy, so the model reads part of the gap as noise and predicts the treated users drifting towards the controls.</p>
-
-  <div class="fig">
-    <div class="fig-body">
-      <svg class="chart" role="img" aria-label="Failure mode 1: stable unobserved trait" viewBox="0 0 760 305">
-        <defs><marker id="arrF1g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9ca3af"/></marker><marker id="arrF1r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b42318"/></marker></defs>
-        <line x1="70" y1="40" x2="70" y2="270" stroke="#999" stroke-width="1.2"/>
-        <line x1="70" y1="270" x2="545" y2="270" stroke="#999" stroke-width="1.2"/>
-        <text x="40" y="155" text-anchor="middle" font-size="14" fill="#666" transform="rotate(-90 40 155)">Engagement</text>
-        <text x="185" y="294" text-anchor="middle" font-size="14" font-weight="700" fill="#333">Before</text>
-        <text x="420" y="294" text-anchor="middle" font-size="14" font-weight="700" fill="#333">After</text>
-        <line x1="300" y1="42" x2="300" y2="270" stroke="#bbb" stroke-width="1" stroke-dasharray="5 4"/>
-        <text x="300" y="32" text-anchor="middle" font-size="13" fill="#888">treatment starts</text>
-        <polyline points="100,110 540,100" fill="none" stroke="#2a78d6" stroke-width="3"/>
-        <polyline points="100,210 260,206.4 340,154.5 540,150" fill="none" stroke="#eb6834" stroke-width="3" stroke-linejoin="round"/>
-        <polyline points="260,206.4 540,200" fill="none" stroke="#111827" stroke-width="2" stroke-dasharray="7 5"/>
-        <polyline points="260,206.4 340,193 400,184 470,176 540,170" fill="none" stroke="#6b7280" stroke-width="2.5" stroke-dasharray="2 4" stroke-linecap="round"/>
-        <line x1="135" y1="113" x2="135" y2="205" stroke="#9ca3af" stroke-width="1.2" marker-start="url(#arrF1g)" marker-end="url(#arrF1g)"/>
-        <text x="145" y="155" font-size="13" fill="#6b7280">unobserved trait:</text>
-        <text x="145" y="172" font-size="13" fill="#6b7280">same gap every week</text>
-        <line x1="505" y1="176" x2="505" y2="198" stroke="#b42318" stroke-width="1.8" marker-start="url(#arrF1r)" marker-end="url(#arrF1r)"/>
-        <text x="497" y="192" text-anchor="end" font-size="13" font-weight="700" fill="#b42318">bias</text>
-        <text x="552" y="105" font-size="14" font-weight="700" fill="#2a78d6">Control</text>
-        <text x="552" y="155" font-size="14" font-weight="700" fill="#eb6834">Treated</text>
-        <text x="552" y="175" font-size="13" fill="#6b7280">lagged-outcome prediction</text>
-        <text x="552" y="205" font-size="13" fill="#111827">true counterfactual</text>
-      </svg>
-    </div>
-    <p class="fig-cap">The treated users sit lower every week because of a trait the data does not contain. The lagged-outcome prediction drifts towards the controls, so the estimated effect is too small.</p>
-  </div>
+  <p>DiD handles this: a constant difference between users cancels when you subtract the pre-period. Lagged-outcome regression can only adjust for income as far as past engagement reveals it, so part of the difference ends up in the estimate.</p>
 
   <h3>Failure mode 2: selection on a temporary dip</h3>
 
-  <p>Users often opt in when something has just changed. Take a win-back campaign: users whose activity has slipped are offered a free trial of a premium tier, and the ones who accept are disproportionately in a temporary slump. Many of them would have bounced back anyway. Ashenfelter (1978) found the same pattern in job training: trainees' earnings fall just before they enrol and recover afterwards, whether the training worked or not.</p>
+  <p>Users often opt in when something has just changed. Take a win-back campaign: users whose activity has slipped are offered a free trial of a premium tier, and the ones who accept are disproportionately in a temporary slump. Many of them would have bounced back anyway. <a href="https://www.jstor.org/stable/1924332" target="_blank" rel="noopener">Ashenfelter (1978)</a> found the same pattern in job training: trainees' earnings fall just before they enrol and recover afterwards, whether the training worked or not.</p>
 
-  <p>Lagged-outcome regression compares dipped treated users with controls who dipped the same way, and both groups recover. DiD subtracts a pre-period depressed by the dip, so the recovery shows up as part of the effect.</p>
+  <p>DiD subtracts each user's pre-period, and its covariates are measured before it, so nothing in the design accounts for the dip. The pre-period is depressed, and the recovery is counted as part of the effect. A dip that hits treated and control users alike, such as a holiday week, is not a problem, because the control change absorbs it. Lagged-outcome regression conditions on the dip itself: it compares dipped treated users with controls who dipped the same way.</p>
 
-  <div class="fig">
-    <div class="fig-body">
-      <svg class="chart" role="img" aria-label="Failure mode 2: temporary dip" viewBox="0 0 760 305">
-        <defs><marker id="arrF2r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b42318"/></marker></defs>
-        <line x1="70" y1="40" x2="70" y2="270" stroke="#999" stroke-width="1.2"/>
-        <line x1="70" y1="270" x2="545" y2="270" stroke="#999" stroke-width="1.2"/>
-        <text x="40" y="155" text-anchor="middle" font-size="14" fill="#666" transform="rotate(-90 40 155)">Engagement</text>
-        <text x="185" y="294" text-anchor="middle" font-size="14" font-weight="700" fill="#333">Before</text>
-        <text x="420" y="294" text-anchor="middle" font-size="14" font-weight="700" fill="#333">After</text>
-        <line x1="300" y1="42" x2="300" y2="270" stroke="#bbb" stroke-width="1" stroke-dasharray="5 4"/>
-        <text x="300" y="32" text-anchor="middle" font-size="13" fill="#888">treatment starts</text>
-        <polyline points="100,110 540,100" fill="none" stroke="#2a78d6" stroke-width="3"/>
-        <polyline points="100,190 140,189 180,192 220,205 260,215 340,145 400,136 470,132 540,130" fill="none" stroke="#eb6834" stroke-width="3" stroke-linejoin="round"/>
-        <polyline points="260,215 340,195 400,186 470,182 540,180" fill="none" stroke="#111827" stroke-width="2" stroke-dasharray="7 5"/>
-        <polyline points="260,215 540,208.6" fill="none" stroke="#6b7280" stroke-width="2.5" stroke-dasharray="2 4" stroke-linecap="round"/>
-        <text x="225" y="240" text-anchor="middle" font-size="13" fill="#6b7280">temporary dip</text>
-        <line x1="505" y1="185" x2="505" y2="206" stroke="#b42318" stroke-width="1.8" marker-start="url(#arrF2r)" marker-end="url(#arrF2r)"/>
-        <text x="497" y="200" text-anchor="end" font-size="13" font-weight="700" fill="#b42318">bias</text>
-        <text x="552" y="105" font-size="14" font-weight="700" fill="#2a78d6">Control</text>
-        <text x="552" y="135" font-size="14" font-weight="700" fill="#eb6834">Treated</text>
-        <text x="552" y="184" font-size="13" fill="#111827">true counterfactual</text>
-        <text x="552" y="213" font-size="13" fill="#6b7280">DiD prediction</text>
-      </svg>
-    </div>
-    <p class="fig-cap">The treated users opt in at the bottom of a dip and would have recovered anyway. DiD projects the dipped level forward, so the recovery is counted as part of the effect.</p>
-  </div>
 
-  <p>The same thing happens in reverse. A user in an unusually busy patch, say around a project deadline, is more likely to switch on power features, and their engagement would have fallen back afterwards. Selection on a temporary spike makes DiD understate the effect instead. The simulation uses a dip, but the lesson holds either way: DiD fails whenever users opt in during a temporary departure from their normal level.</p>
+  <p>To measure these biases, and to test whether the data reveals them, we need a known true effect.</p>
 </section>
 
 <!-- 3 -->
 <section id="simulation">
-  <p class="s-label">3 · The simulation</p>
-  <h2>A simulation with a known answer</h2>
+  <h2>3. A simulation with a known answer</h2>
 
-  <p>To test this we need data where the true effect is known. The simulation builds a weekly panel of 10,000 users. Each user's engagement has four parts: a level set by observed covariates and a hidden stable trait; a trend that depends on the observed covariates; shared seasonality; and a transitory shock that decays by 20% a week. Every user gets a candidate week. Treated users opt in that week, and controls are users who were eligible that week and did not.</p>
+  <p>The simulation builds a weekly panel of 10,000 users. Each user's weekly engagement (think minutes per week, around 30 for a typical user) is the sum of four parts:</p>
 
-  <p>The treatment adds exactly 2.0 to weekly engagement. Both potential outcomes are simulated for every user, so the true ATT is known. What changes between scenarios is why users opt in. In every scenario, users with lower engagement are more likely to opt in.</p>
+  <ul class="pts">
+    <li>a level set by observed covariates and an unobserved time-invariant confounder</li>
+    <li>a trend that depends on the observed covariates</li>
+    <li>seasonality shared by everyone</li>
+    <li>a temporary shock that fades by 20% a week</li>
+  </ul>
+
+  <p>Every user gets a candidate week. Treated users opt in that week, and controls are users who were eligible that week and did not. The feature adds 2 minutes a week for every treated user, so the true effect is 2.0. Engagement with and without the feature is simulated for every user, which is what lets us plot the true counterfactual below.</p>
+
+  <p>What changes between scenarios is why users opt in. In every scenario, users with lower engagement are more likely to opt in.</p>
 
   <div class="dtable-wrap">
     <table class="dtable">
@@ -407,14 +359,14 @@ footer { max-width: var(--w); margin: 0 auto; padding: 1.5rem; border-top: 1px s
       <thead><tr><th>Scenario</th><th>Users opt in based on</th><th>Unconfoundedness</th><th>Parallel trends</th></tr></thead>
       <tbody>
         <tr><td>a. Observables only</td><td>observed covariates</td><td class="good">holds</td><td class="good">holds</td></tr>
-        <tr><td>b. Stable trait</td><td>covariates and the hidden trait</td><td class="bad">fails</td><td class="good">holds</td></tr>
+        <tr><td>b. Time-invariant confounder</td><td>covariates and the time-invariant confounder</td><td class="bad">fails</td><td class="good">holds</td></tr>
         <tr><td>c. Transitory dip</td><td>covariates and engagement over the last three weeks</td><td class="good">holds</td><td class="bad">fails</td></tr>
         <tr><td>d. Both</td><td>all of the above</td><td class="bad">fails</td><td class="bad">fails</td></tr>
       </tbody>
     </table>
   </div>
 
-  <p>Both designs are estimated the same way, with <a href="https://arxiv.org/abs/1608.00060" target="_blank" rel="noopener">double machine learning</a> in <a href="https://docs.doubleml.org/" target="_blank" rel="noopener">DoubleML</a>. Lagged-outcome regression uses <code>DoubleMLIRM</code> with the ATT score on mean engagement in weeks 0 to 3. DiD uses <code>DoubleMLDIDBinary</code> on the pre-period mean (weeks -4 to -1) and the post-period mean (weeks 0 to 3). Both use LightGBM for the outcome and propensity models, five-fold cross-fitting and propensities clipped at 0.01.</p>
+  
 
   <div class="fig">
     <div class="fig-hdr">
@@ -428,10 +380,14 @@ footer { max-width: var(--w); margin: 0 auto; padding: 1.5rem; border-top: 1px s
       </div>
       <div class="panels" id="panelsMeans"></div>
     </div>
-    <p class="fig-cap">Week 0 is the week the treated users opted in. In b the treated sit lower throughout but move in parallel with controls. In c and d they dip into the opt-in week.</p>
+    <p class="fig-cap">Week 0 is the week the treated users opted in.</p>
   </div>
 
-  <p>The next chart is the clearest way to see what each design assumes. For the treated users it shows what actually happened, what would have happened without the feature (known here because the data is simulated), and the counterfactual each design implies. The gap between the treated line and a counterfactual after week 0 is that design's estimate.</p>
+  <p>The raw data shows each selection mechanism. In a, treated and control users differ only through the observed covariates. In b, the treated users sit lower every week but move in parallel with the controls: that gap is the time-invariant confounder. In c, the treated users dip in the three weeks before opting in. Scenario d has both.</p>
+
+  <p>On each dataset both designs are estimated the same way, with <a href="https://arxiv.org/abs/1608.00060" target="_blank" rel="noopener">double machine learning</a> in <a href="https://docs.doubleml.org/" target="_blank" rel="noopener">DoubleML</a>. Lagged-outcome regression uses <code>DoubleMLIRM</code> with the ATTE score on mean engagement in weeks 0 to 3. DiD uses <code>DoubleMLDIDBinary</code> on the mean over the baseline window (weeks -4 to -1) and the post-period mean (weeks 0 to 3). Both use LightGBM for the outcome and propensity models, five-fold cross-fitting and propensities clipped at 0.01.</p>
+
+  <p>The next chart shows what each design assumes. It covers the treated users only: what they actually did (orange), what they would have done without the feature (black dashed, known because the data is simulated), and what each design assumes they would have done. A design's estimate is the gap between the orange line and its own line after week 0. The closer its line is to the black one, the better the estimate.</p>
 
   <div class="fig">
     <div class="fig-hdr">
@@ -442,7 +398,7 @@ footer { max-width: var(--w); margin: 0 auto; padding: 1.5rem; border-top: 1px s
       <div class="legend">
         <span class="li"><svg width="20" height="4"><line x1="0" y1="2" x2="20" y2="2" stroke="#eb6834" stroke-width="2.5"/></svg>Treated, actual</span>
         <span class="li"><svg width="20" height="4"><line x1="0" y1="2" x2="20" y2="2" stroke="#111827" stroke-width="2" stroke-dasharray="4 3"/></svg>True counterfactual</span>
-        <span class="li"><svg width="20" height="4"><line x1="0" y1="2" x2="20" y2="2" stroke="#2a78d6" stroke-width="2.5"/></svg>Unconfoundedness</span>
+        <span class="li"><svg width="20" height="4"><line x1="0" y1="2" x2="20" y2="2" stroke="#2a78d6" stroke-width="2.5"/></svg>Lagged-outcome regression</span>
         <span class="li"><svg width="20" height="4"><line x1="0" y1="2" x2="20" y2="2" stroke="#1baf7a" stroke-width="2.5"/></svg>DiD</span>
       </div>
       <div class="panels" id="panelsCF"></div>
@@ -450,125 +406,14 @@ footer { max-width: var(--w); margin: 0 auto; padding: 1.5rem; border-top: 1px s
     <p class="fig-cap">The DiD line starts at week -4: it is the treated users' average over weeks -4 to -1 plus the change seen in weighted controls.</p>
   </div>
 
-  <p>In scenario c the DiD line stays down at the depressed pre-period level, while the true counterfactual climbs back as the dip wears off. In scenario b the unconfoundedness line sits too high: it borrows controls who looked similar over eight weeks but had more of the hidden trait.</p>
-</section>
-
-<!-- 4 -->
-<section id="covariates">
-  <p class="s-label">4 · Covariates</p>
-  <h2>Lagged outcomes vs DiD covariate rules</h2>
-
-  <p>The two designs need different covariates, and mixing them up quietly changes the assumption.</p>
-
   <ul class="pts">
-    <li><strong>Unconfoundedness:</strong> condition on the outcome history. Here that is engagement in each of the eight weeks before opt-in, its slope and the most recent change, plus the non-outcome covariates.</li>
-    <li><strong>DiD:</strong> use non-outcome covariates measured before the pre-period. Do not add outcome lags from the pre-period.</li>
+    <li><strong>a.</strong> Both lines sit on the true counterfactual. Both estimates are right.</li>
+    <li><strong>b.</strong> DiD tracks the truth. The lagged-outcome line rises after week 0 because its matched controls drift back up (failure mode 1), so it understates the effect.</li>
+    <li><strong>c.</strong> The true counterfactual climbs back as the dip wears off. Lagged-outcome regression follows it. DiD stays at the dipped baseline (failure mode 2), so it overstates the effect.</li>
+    <li><strong>d.</strong> The lagged-outcome line sits above the truth and the DiD line below it. One estimate is too small and the other too large, so the truth sits between them.</li>
   </ul>
 
-  <p>The second rule surprises people. Adding a few early lags to a DiD feels like a harmless robustness check. <a href="https://pubmed.ncbi.nlm.nih.gov/29957834/" target="_blank" rel="noopener">Daw and Hatfield (2018)</a> showed it is not: when treated and control groups differ in level, matching them on pre-period outcomes pairs each treated user with controls whose outcomes were temporarily unusual, and those controls then regress to their own mean.</p>
-
-  <p>To measure the cost, the study includes a third design, DiD with lags: the DiD from above with engagement at weeks -8 to -5 added as covariates.</p>
-
-  <div class="fig">
-    <div class="fig-hdr">
-      <div class="fig-title">Adding lags to DiD changes the assumption</div>
-      <div class="fig-sub">Mean bias over the Monte Carlo replications, true effect 2.0</div>
-    </div>
-    <div class="fig-body">
-      <div class="legend">
-        <span class="li"><svg width="10" height="10"><circle cx="5" cy="5" r="4.5" fill="#2a78d6"/></svg>Unconfoundedness</span>
-        <span class="li"><svg width="10" height="10"><circle cx="5" cy="5" r="4.5" fill="#1baf7a"/></svg>DiD</span>
-        <span class="li"><svg width="10" height="10"><circle cx="5" cy="5" r="4.5" fill="#111827"/></svg>DiD with lags</span>
-      </div>
-      <svg class="chart" id="chartLags"></svg>
-    </div>
-    <p class="fig-cap">Bias is the mean estimate minus the true effect. Zero is unbiased.</p>
-  </div>
-
-  <p>In scenario b, where parallel trends holds, adding the lags makes DiD about as biased as the unconfoundedness design (<span data-v="mc.methods.b.did_lags.bias" data-f="s2"></span> against <span data-v="mc.methods.b.did.bias" data-f="s2"></span> without them). In scenario c the lags help, because they carry part of the dip, but they do not remove the bias. Adding lags is a different design, not a robustness check, and whether it helps depends on a selection mechanism you cannot see.</p>
-</section>
-
-<!-- 5 -->
-<section id="diagnostic">
-  <p class="s-label">5 · The diagnostic</p>
-  <h2>Event-time plots: pre-trends and placebo</h2>
-
-  <p>If the two designs fail in different situations, the useful question is which situation you are in. The pre-period is the only place to look, since nothing has been treated there yet. It has to be used carefully.</p>
-
-  <p>The usual check is covariate balance after weighting. It always passes, because the weights were fitted to balance exactly those features, including in scenario b where the design is biased. A real check has to look at something the propensity model did not see.</p>
-
-  <h3>The DiD check: pre-trends</h3>
-
-  <p>For DiD, the assumption is about trends, so test the trend before week 0. Weight controls on the non-outcome covariates only, as the DiD design does, and express each user's engagement relative to their own average over weeks -8 to -5. That removes stable level differences. Under parallel trends the gap between treated and control should be flat at zero over weeks -4 to -1.</p>
-
-  <div class="fig">
-    <div class="fig-hdr">
-      <div class="fig-title">DiD check: gap in change since weeks -8 to -5</div>
-      <div class="fig-sub">Treated minus covariate-weighted control, 95% bands. Grey: weeks -4 to -1. Orange: post-period.</div>
-    </div>
-    <div class="fig-body"><div class="panels" id="panelsPretrend"></div></div>
-    <p class="fig-cap">The largest |z| across weeks -4 to -1 is shown under each panel. The check flags above 2.5.</p>
-  </div>
-
-  <p>Flat in a and b, a clear dip in c and d. Parallel trends fails exactly where DiD was biased.</p>
-
-  <h3>The unconfoundedness check: a placebo on the history</h3>
-
-  <p>For unconfoundedness, move the whole design back in time. Fit the propensity model on the history through week -5 only and look at weeks -4 to -1. Nothing has been treated, so any gap means selection on the observed history did not explain who opted in.</p>
-
-  <div class="fig">
-    <div class="fig-hdr">
-      <div class="fig-title">Unconfoundedness check: propensity on history through week -5</div>
-      <div class="fig-sub">Treated minus weighted control, 95% bands</div>
-    </div>
-    <div class="fig-body"><div class="panels" id="panelsPlacebo"></div></div>
-    <p class="fig-cap">In b the gap drifts down slowly. In c and d it drops sharply in the last three weeks.</p>
-  </div>
-
-  <p>In b the gap drifts: matching on four noisy early weeks leaves a trait difference that keeps showing up. That drift is the signature of a hidden stable trait.</p>
-
-  <p>In c the placebo fails too, even though unconfoundedness holds at week 0. Selection in c runs on engagement in weeks -3 to -1, and a placebo that stops at week -5 drops exactly those weeks. So no pre-period check can separate "users opted in after a dip" (c) from "users opted in after a dip and have a lower hidden trait" (d).</p>
-
-  <h3 id="rule">The decision rule</h3>
-
-  <div class="dtable-wrap">
-    <table class="dtable">
-      <thead><tr><th>DiD pre-trend check</th><th>Unconfoundedness placebo</th><th>What to do</th></tr></thead>
-      <tbody>
-        <tr><td>flat</td><td>flat</td><td>Both designs are plausible and should agree. Report either.</td></tr>
-        <tr><td>flat</td><td>drifts</td><td>A stable hidden trait. Use DiD.</td></tr>
-        <tr><td>dips</td><td>flat or dips</td><td>Parallel trends fails. Use unconfoundedness with lags, and report DiD as the other bound.</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <p>The last row needs a word of explanation. A dip rules out DiD, but the placebo cannot rule out a stable trait on top of the dip. <a href="https://arxiv.org/abs/1903.06286" target="_blank" rel="noopener">Ding and Li (2019)</a>, building on Angrist and Pischke, show that under conditions like these the two estimates bracket the truth: with negative selection, unconfoundedness errs low and DiD errs high. Reporting both gives a range that holds whichever of c or d you are in.</p>
-
-  <div class="callout"><p>Pick the design from the pre-period data, not from the textbook you learned on. When the data cannot decide, report both estimates as bounds.</p></div>
-
-  <p>The repo wraps both checks in one function. On your own panel:</p>
-
-<pre><code>from uvpt.diagnostics import diagnose
-from uvpt.features import to_wide
-
-wide = to_wide(panel, user="user_id", time="event_time", treated="treated",
-               outcome="sessions", covariates=["tenure", "platform"], week="week")
-out = diagnose(wide)
-print(out["reading"])</code></pre>
-</section>
-
-<!-- 6 -->
-<section id="results">
-  <p class="s-label">6 · Results</p>
-  <h2>Simulation results</h2>
-
-  <p>A single dataset can be lucky. To separate bias from noise, each scenario was simulated <span data-v="mc.reps.a"></span> times with 10,000 users, and every design was estimated on every replication.</p>
-
-  <div class="knums">
-    <div class="kbox"><div class="lbl">DiD bias, scenario c</div><div class="num" data-v="mc.methods.c.did.bias" data-f="s2"></div><div class="lab">on a true effect of 2.0</div></div>
-    <div class="kbox"><div class="lbl">Unconfoundedness bias, scenario b</div><div class="num" data-v="mc.methods.b.unconf.bias" data-f="s2"></div><div class="lab">on a true effect of 2.0</div></div>
-    <div class="kbox"><div class="lbl">Truth bracketed, scenario d</div><div class="num" data-v="mc.bracket_d" data-f="pct"></div><div class="lab">of replications</div></div>
-  </div>
+  <p>A single dataset can be lucky. To separate bias from noise, each scenario was simulated <span data-v="mc.reps.a"></span> times and both designs were estimated on every replication.</p>
 
   <div class="fig">
     <div class="fig-hdr">
@@ -579,76 +424,119 @@ print(out["reading"])</code></pre>
     <p class="fig-cap">The naive comparison is left off the chart: its bias runs from <span data-v="mc.methods.a.naive_unconf.bias" data-f="s2"></span> to <span data-v="mc.methods.d.naive_unconf.bias" data-f="s2"></span>.</p>
   </div>
 
-  <p>The results line up with the table in section 3. Each design is unbiased with close to nominal coverage where its assumption holds, and badly biased where it does not. A biased design does not just miss: its intervals stay narrow, so coverage collapses. An analyst would see a confident wrong answer, not a vague one.</p>
+  <p>Each design is unbiased where its assumption holds and badly biased where it does not. A biased design does not just miss: its intervals stay as narrow as the valid design's. In scenario b, DiD's 95% intervals contained the true effect in <span data-v="mc.methods.b.did.coverage" data-f="pct"></span> of replications and lagged-outcome regression's in <span data-v="mc.methods.b.unconf.coverage" data-f="pct"></span>. An analyst would see a confident wrong answer, not a vague one.</p>
 
-  <p>In scenario d both designs are biased in opposite directions, and the truth sits between them in <span data-v="mc.bracket_d" data-f="pct"></span> of replications.</p>
+  <p>Lagged-outcome regression handles the dip because it conditions on the lagged outcomes. So can't we fix DiD by adding lagged outcomes to it too?</p>
+</section>
 
-  <h3>How often the checks get it right</h3>
+<!-- 4 -->
+<section id="covariates">
+  <h2>4. Can lagged outcomes fix DiD?</h2>
 
-  <div class="dtable-wrap">
-    <table class="dtable" id="tableReject">
-      <caption>Share of replications where each check flags a problem</caption>
+  <p>Adding a few early lags to a DiD feels like a harmless robustness check. <a href="https://pubmed.ncbi.nlm.nih.gov/29957834/" target="_blank" rel="noopener">Daw and Hatfield (2018)</a> showed it is not. When treated and control groups differ in level, matching them on past outcomes pairs each treated user with controls whose outcomes were temporarily unusual, and those controls then regress to their own mean. That is failure mode 1, brought into DiD.</p>
+
+  <p>To measure the cost, the study includes a third design, DiD with lags: the DiD from above with engagement in weeks -8 to -5 added as covariates. These weeks come before DiD's baseline window, so the problem is not timing. It is that they are outcomes.</p>
+
+  <div class="fig">
+    <div class="fig-hdr">
+      <div class="fig-title">Adding lags to DiD changes the assumption</div>
+      <div class="fig-sub">Estimates across replications. Dot: mean. Thick bar: middle 50%. Thin bar: middle 95%. Dashed: true effect.</div>
+    </div>
+    <div class="fig-body"><div class="panels" id="panelsLags"></div></div>
+    <p class="fig-cap">Same axis as the chart in section 3, with DiD with lags added as a third row.</p>
+  </div>
+
+  <ul class="pts">
+    <li><strong>Scenario b:</strong> parallel trends holds, and adding the lags makes DiD about as biased as lagged-outcome regression (<span data-v="mc.methods.b.did_lags.bias" data-f="s2"></span>, against <span data-v="mc.methods.b.unconf.bias" data-f="s2"></span> for lagged-outcome regression and <span data-v="mc.methods.b.did.bias" data-f="s2"></span> for plain DiD).</li>
+    <li><strong>Scenario c:</strong> the lags help, because they carry part of the dip, but they do not remove the bias (<span data-v="mc.methods.c.did_lags.bias" data-f="s2"></span> against <span data-v="mc.methods.c.did.bias" data-f="s2"></span>).</li>
+    <li><strong>So:</strong> the lags only help DiD when parallel trends already fails. You only use DiD when the pre-trend check below is flat, and there they can only hurt.</li>
+  </ul>
+
+  <p>That gives one covariate rule per design:</p>
+
+  <ul class="pts">
+    <li><strong>Lagged-outcome regression:</strong> condition on the outcome history. Here that is engagement in each of the eight weeks before opt-in, its slope and the most recent change, plus the non-outcome covariates.</li>
+    <li><strong>DiD:</strong> use non-outcome covariates measured before the baseline window, and no outcome lags.</li>
+  </ul>
+</section>
+
+<!-- 5 -->
+<section id="diagnostic">
+  <h2>5. The diagnostic: check the pre-trend</h2>
+
+  <p>The two designs fail in different situations, so the question is which situation you are in. The pre-period is where to look: nothing has been treated yet, so any difference between treated and control there comes from selection (assuming users do not change behaviour in anticipation of opting in).</p>
+
+  <p>Covariate balance after weighting is not a test. The weights are fitted to balance those features, so it passes in scenario b too, where lagged-outcome regression is biased.</p>
+
+  <h3>The pre-trend check</h3>
+
+  <p>Parallel trends is an assumption about trends, so test the trend before week 0, in the way DiD sees the data:</p>
+
+  <ol class="pts">
+    <li>Take each user's average engagement in weeks -8 to -5 as their reference level, and subtract it from every later week. This removes level differences, as DiD does.</li>
+    <li>Weight the controls on the non-outcome covariates only, as the DiD design does.</li>
+    <li>Plot the treated minus weighted-control gap week by week. If parallel trends holds, it stays flat at zero through weeks -4 to -1.</li>
+  </ol>
+
+  <div class="fig">
+    <div class="fig-hdr">
+      <div class="fig-title">Pre-trend check: gap in change since weeks -8 to -5</div>
+      <div class="fig-sub">Treated minus covariate-weighted control, 95% bands. Grey: weeks -4 to -1. Orange: post-period.</div>
+    </div>
+    <div class="fig-body"><div class="panels" id="panelsPretrend"></div></div>
+    <p class="fig-cap">The largest |z| across weeks -4 to -1 is shown under each panel. The check flags above 2.5.</p>
+  </div>
+
+  <p>Flat in a and b, a clear dip in c and d. Parallel trends fails exactly where DiD was biased. Across the replications the check flagged every run of c and d, and <span data-v="mc.rejection.a.pretrend_gap" data-f="pct"></span> of a and <span data-v="mc.rejection.b.pretrend_gap" data-f="pct"></span> of b. The 2.5 threshold keeps the false alarm rate near 5% across the four weeks.</p>
+
+  <p>A flat pre-trend is evidence for parallel trends, not proof. It says nothing about the weeks after opt-in, and pre-tests have limited power (<a href="https://www.aeaweb.org/articles?id=10.1257/aeri.20210236" target="_blank" rel="noopener">Roth 2022</a>). A similar placebo for lagged-outcome regression (fit on the history up to week -5, check weeks -4 to -1) flagged b, c and d alike, so it cannot tell a confounder from a dip and is left out of the rule.</p>
+</section>
+
+<!-- 6 -->
+<section id="rule">
+  <h2>6. The decision rule</h2>
+
+  <ul class="pts">
+    <li><strong>Flat pre-trend → DiD.</strong> It copes with a time-invariant confounder, which lagged-outcome regression cannot.</li>
+    <li><strong>Pre-trend dips → lagged-outcome regression, with DiD as the other bound.</strong> The dip rules out DiD, but nothing in the pre-period rules out a time-invariant confounder as well.</li>
+  </ul>
+
+  <div class="rulebox">
+    <table class="dtable rule">
+      <thead><tr><th>Pre-trend check</th><th>DiD</th><th>Lagged-outcome regression</th><th>Report</th></tr></thead>
+      <tbody>
+        <tr><td>Flat</td><td>✅</td><td>⚠️ only if there is no time-invariant confounder</td><td>DiD</td></tr>
+        <tr><td>Dips</td><td>❌</td><td>✅ unless there is also a time-invariant confounder</td><td>Lagged-outcome regression, with DiD as the other bound</td></tr>
+      </tbody>
     </table>
   </div>
 
-  <p>The DiD pre-trend check flagged every replication of c and d, and 3% of a and b, inside its nominal 5% false alarm rate. The unconfoundedness placebo flagged every replication of b, c and d. On its own it says something is wrong without saying what, which is why it is read together with the pre-trend check.</p>
+  <p>Why do the two estimates work as bounds? If either assumption holds, plus a stationarity condition on the outcome, they bracket the truth (<a href="https://arxiv.org/abs/1903.06286" target="_blank" rel="noopener">Ding and Li 2019</a>, building on Angrist and Pischke). Here the treated users start lower, so lagged-outcome regression errs low and DiD errs high. With positive selection the directions flip. Scenario d, where both assumptions fail, is outside that result. The truth still fell between the two estimates in <span data-v="mc.bracket_d" data-f="pct"></span> of replications, but that is a property of this simulation, not a guarantee.</p>
 </section>
 
 <!-- FAQ -->
 <section id="faq">
-  <p class="s-label">Questions</p>
   <h2>Frequently asked questions</h2>
-
-  <details class="faq"><summary>Why not include every covariate in both designs, just to be safe?</summary>
-    <p>Because covariates are part of the assumption. Outcome lags make unconfoundedness plausible, and the same lags break DiD when the groups differ in level. Section 4 shows DiD with lags is as biased as unconfoundedness in scenario b.</p>
-  </details>
 
   <details class="faq"><summary>Can I use DiD when the outcome is churn?</summary>
     <p>Not directly. Churn is absorbing, and a user has to be active to be offered a feature, so pre-period churn is zero for everyone in the analysis. That causes three problems. There is no pre-trend to check. Subtracting zero from both groups leaves the naive comparison of post-period churn. And the sample is filtered on survival, which can treat the groups differently if opting in depends on recent engagement.</p>
-    <p>For churn, condition on the history instead: unconfoundedness with lagged engagement as covariates, or a survival model with time-varying covariates. This article uses weekly engagement, which is not absorbing, so both designs can be compared on the same data.</p>
-  </details>
-
-  <details class="faq"><summary>Does the choice of machine learning model matter?</summary>
-    <p>Much less than the design. Swapping LightGBM for scikit-learn's HistGradientBoosting moves the estimates in scenarios b and c by at most 0.05, against design biases of 0.7 to 1.0. The flexible models matter for getting the nuisance functions right, and they cannot fix an assumption that does not hold.</p>
+    <p>For churn, condition on the history instead: lagged-outcome regression, or a survival model with time-varying covariates. This article uses weekly engagement, which is not absorbing, so both designs can be compared on the same data.</p>
   </details>
 
   <details class="faq"><summary>Can sensitivity analysis tell me which design to trust?</summary>
-    <p>No. DoubleML includes the <a href="https://arxiv.org/abs/2112.13398" target="_blank" rel="noopener">omitted variable bias bounds of Chernozhukov et al.</a>, which ask how strong a hidden confounder would need to be to move the estimate. They are worth reporting, but they measure fragility to unobserved confounding and cannot see a broken parallel trends assumption. In scenario c the biased DiD estimate has a robustness value of 0.25, higher than the valid unconfoundedness estimate at 0.19. The pre-period checks are what choose the design.</p>
-  </details>
-
-  <details class="faq"><summary>What about overlap?</summary>
-    <p>The ATT weights each control by p/(1-p), so controls who look like typical treated users carry a lot of weight, and when selection is strong a few can dominate. In scenario d the effective sample size of the control weights for the unconfoundedness design falls to about 700 out of 8,000 controls. Nothing needed clipping here, but check the weights on real data before trusting the interval.</p>
-  </details>
-
-  <details class="faq"><summary>What if users opt in at different times?</summary>
-    <p>They do here: every user has their own index week, and controls are aligned to the week they were eligible. With staggered adoption and a shared calendar, use an estimator built for it, such as Callaway and Sant'Anna. The two failure modes and the pre-period checks carry over.</p>
-  </details>
-
-  <details class="faq"><summary>How should controls get an index date?</summary>
-    <p>In this study, each control's index week is the week they were eligible and did not opt in. A common shortcut is to assign controls random dates drawn from the treated calendar. In scenario c that biased the unconfoundedness estimate by about 0.1, because the decision not to opt in was made in a different week from the one being compared.</p>
-  </details>
-
-  <details class="faq"><summary>What if I only have a few weeks of history?</summary>
-    <p>Then neither check has much to work with. With fewer than about six pre-period weeks there is no room for a placebo window and a reference window, and the lags are a weaker proxy for any stable trait. Report both designs and say the data cannot choose between them.</p>
-  </details>
-
-  <details class="faq"><summary>Is synthetic control an alternative?</summary>
-    <p>Synthetic control is built for a few treated units with long histories, such as regions or countries. With thousands of users each opting in at their own time, the designs here are the more natural fit. Its weighting on pre-period outcomes also makes it closer to unconfoundedness in spirit, so it shares that design's weakness to a hidden trait.</p>
+    <p>No. DoubleML includes the <a href="https://arxiv.org/abs/2112.13398" target="_blank" rel="noopener">omitted variable bias bounds of Chernozhukov et al.</a> They say how strong a hidden confounder, of levels or of trends, would have to be to move the estimate, not whether one exists. In scenario c the biased DiD estimate looks more robust (robustness value 0.25) than the valid lagged-outcome estimate (0.19). The pre-trend check is what chooses the design.</p>
   </details>
 </section>
 
 <!-- Conclusion -->
 <section id="together">
-  <p class="s-label">Bringing it together</p>
   <h2>The assumption is the decision</h2>
 
-  <p>Both designs used equally sophisticated estimators. Which one was right depended only on whether its assumption matched how users chose to opt in.</p>
+  <p>The same estimator was used in both designs. The right one was whichever assumption matched how users opted in.</p>
 
   <ul class="pts">
-    <li><strong>Separate the estimator from the design.</strong> DML is a way to estimate. Unconfoundedness and parallel trends are what make the estimate mean something.</li>
-    <li><strong>Match the covariates to the design.</strong> Lags belong in unconfoundedness and out of DiD.</li>
-    <li><strong>Test the assumption, not the weights.</strong> Balance is mechanical. Pre-trends and placebos are not.</li>
-    <li><strong>Report bounds when the data cannot choose.</strong> A dip before opt-in rules out DiD, and cannot rule out a hidden trait.</li>
+    <li><strong>Separate the estimator from the design.</strong> DML is a way to estimate. Unconfoundedness and parallel trends are what make it causal.</li>
+    <li><strong>Let the pre-trend choose.</strong> Flat: DiD. Dip: lagged-outcome regression, with DiD as the other bound.</li>
   </ul>
 
   <p>The simulator, estimators and diagnostics are in the <a href="https://github.com/raz1470/unconfoundedness-vs-parallel-trends" target="_blank" rel="noopener">companion repo</a>, along with a notebook that reproduces every figure here. The diagnostics take a long panel with your own column names, so the checks in section 5 run on real data unchanged.</p>
@@ -656,18 +544,19 @@ print(out["reading"])</code></pre>
   <h3>References</h3>
   <ul class="refs">
     <li>Angrist, J. and Pischke, J.-S. (2009). <em>Mostly Harmless Econometrics</em>, section 5.4. Princeton University Press.</li>
-    <li>Ashenfelter, O. (1978). Estimating the effect of training programs on earnings. <em>Review of Economics and Statistics</em>, 60(1).</li>
-    <li>Chernozhukov, V. et al. (2018). <a href="https://arxiv.org/abs/1608.00060" target="_blank" rel="noopener">Double/debiased machine learning for treatment and structural parameters</a>. <em>The Econometrics Journal</em>.</li>
-    <li>Chernozhukov, V. et al. (2022). <a href="https://arxiv.org/abs/2112.13398" target="_blank" rel="noopener">Long story short: omitted variable bias in causal machine learning</a>.</li>
-    <li>Daw, J. and Hatfield, L. (2018). <a href="https://pubmed.ncbi.nlm.nih.gov/29957834/" target="_blank" rel="noopener">Matching and regression to the mean in difference-in-differences analysis</a>. <em>Health Services Research</em>.</li>
-    <li>Ding, P. and Li, F. (2019). <a href="https://arxiv.org/abs/1903.06286" target="_blank" rel="noopener">A bracketing relationship between difference-in-differences and lagged-dependent-variable adjustment</a>. <em>Political Analysis</em>.</li>
-    <li>Sant'Anna, P. and Zhao, J. (2020). <a href="https://arxiv.org/abs/1812.01723" target="_blank" rel="noopener">Doubly robust difference-in-differences estimators</a>. <em>Journal of Econometrics</em>.</li>
+    <li>Ashenfelter, O. (1978). Estimating the effect of training programs on earnings. <em>Review of Economics and Statistics</em>, 60(1), 47–57.</li>
+    <li>Chernozhukov, V. et al. (2018). <a href="https://arxiv.org/abs/1608.00060" target="_blank" rel="noopener">Double/debiased machine learning for treatment and structural parameters</a>. <em>The Econometrics Journal</em>, 21(1), C1–C68.</li>
+    <li>Chernozhukov, V. et al. (2022). <a href="https://arxiv.org/abs/2112.13398" target="_blank" rel="noopener">Long story short: omitted variable bias in causal machine learning</a>. NBER Working Paper 30302.</li>
+    <li>Daw, J. and Hatfield, L. (2018). <a href="https://pubmed.ncbi.nlm.nih.gov/29957834/" target="_blank" rel="noopener">Matching and regression to the mean in difference-in-differences analysis</a>. <em>Health Services Research</em>, 53(6), 4138–4156.</li>
+    <li>Ding, P. and Li, F. (2019). <a href="https://arxiv.org/abs/1903.06286" target="_blank" rel="noopener">A bracketing relationship between difference-in-differences and lagged-dependent-variable adjustment</a>. <em>Political Analysis</em>, 27(4), 605–615.</li>
+    <li>Roth, J. (2022). <a href="https://www.aeaweb.org/articles?id=10.1257/aeri.20210236" target="_blank" rel="noopener">Pretest with caution: event-study estimates after testing for parallel trends</a>. <em>American Economic Review: Insights</em>, 4(3), 305–322.</li>
+    <li>Sant'Anna, P. and Zhao, J. (2020). <a href="https://arxiv.org/abs/1812.01723" target="_blank" rel="noopener">Doubly robust difference-in-differences estimators</a>. <em>Journal of Econometrics</em>, 219(1), 101–122.</li>
   </ul>
 </section>
 
 </main>
 
-<footer>Simulated data throughout. Every number and chart on this page is generated by <code>tools/article_data.py</code> in the companion repo.</footer>
+<footer>Simulated data throughout. Every chart and number on this page is generated by <code>tools/article_data.py</code> in the companion repo, except the robustness values in the FAQ, which come from the notebook.</footer>
 
 <script>
 const DATA = /*DATA_START*/{"event_times":[-8,-7,-6,-5,-4,-3,-2,-1,0,1,2,3,4],"single":{"a":{"truth":2.0,"means":{"treated":{"mean":[29.154,29.317,29.327,29.264,29.302,29.297,29.27,29.322,31.378,31.345,31.216,31.115,31.159],"lo":[28.847,29.015,29.023,28.953,28.989,28.988,28.961,29.013,31.065,31.032,30.896,30.8,30.85],"hi":[29.462,29.619,29.631,29.575,29.614,29.605,29.58,29.632,31.692,31.658,31.536,31.431,31.468]},"control":{"mean":[29.738,29.786,29.777,29.828,29.872,29.931,29.974,29.947,29.971,29.908,29.87,29.779,29.781],"lo":[29.587,29.633,29.625,29.676,29.721,29.78,29.823,29.796,29.819,29.757,29.718,29.628,29.63],"hi":[29.889,29.938,29.929,29.981,30.024,30.083,30.125,30.098,30.124,30.06,30.021,29.931,29.932]}},"cf":{"actual":[29.154,29.317,29.327,29.264,29.302,29.297,29.27,29.322,31.378,31.345,31.216,31.115,31.159],"true_y0":[29.154,29.317,29.327,29.264,29.302,29.297,29.27,29.322,29.378,29.345,29.216,29.115,29.159],"unconf_cf":[29.123,29.226,29.242,29.271,29.204,29.201,29.172,29.201,29.252,29.173,29.222,29.124,29.122],"did_cf":[29.0,29.053,29.092,29.195,29.191,29.286,29.352,29.362,29.371,29.27,29.305,29.205,29.198]},"pretrend":{"gap":[-0.026,0.083,0.055,-0.112,-0.07,-0.171,-0.263,-0.221,1.826,1.895,1.73,1.729,1.78],"lo":[-0.176,-0.021,-0.052,-0.261,-0.278,-0.413,-0.536,-0.51,1.518,1.578,1.396,1.387,1.432],"hi":[0.123,0.188,0.161,0.038,0.137,0.072,0.01,0.069,2.135,2.211,2.064,2.072,2.128]},"placebo":{"gap":[0.031,0.092,0.098,0.025,0.076,-0.027,-0.118,-0.062,1.992,2.066,1.907,1.906,1.974],"lo":[-0.344,-0.278,-0.272,-0.352,-0.303,-0.402,-0.491,-0.433,1.617,1.693,1.529,1.528,1.601],"hi":[0.406,0.462,0.469,0.402,0.455,0.348,0.255,0.31,2.367,2.439,2.284,2.283,2.347]},"pretrend_z":1.9,"placebo_z":0.6,"flags":[false,false],"n_treated":1929,"n":10000},"b":{"truth":2.0,"means":{"treated":{"mean":[26.414,26.571,26.551,26.58,26.583,26.633,26.628,26.718,28.697,28.68,28.542,28.464,28.555],"lo":[26.121,26.275,26.258,26.286,26.29,26.342,26.334,26.42,28.394,28.38,28.234,28.157,28.253],"hi":[26.707,26.866,26.844,26.874,26.877,26.925,26.923,27.016,29.0,28.981,28.849,28.771,28.857]},"control":{"mean":[30.418,30.466,30.465,30.494,30.547,30.592,30.631,30.594,30.636,30.569,30.534,30.438,30.427],"lo":[30.27,30.317,30.316,30.344,30.398,30.444,30.483,30.446,30.487,30.421,30.385,30.29,30.28],"hi":[30.565,30.615,30.614,30.644,30.696,30.741,30.778,30.741,30.785,30.717,30.682,30.585,30.574]}},"cf":{"actual":[26.414,26.571,26.551,26.58,26.583,26.633,26.628,26.718,28.697,28.68,28.542,28.464,28.555],"true_y0":[26.414,26.571,26.551,26.58,26.583,26.633,26.628,26.718,26.697,26.68,26.542,26.464,26.555],"unconf_cf":[26.458,26.543,26.544,26.535,26.513,26.562,26.625,26.727,27.007,27.199,27.496,27.628,27.745],"did_cf":[26.267,26.371,26.419,26.478,26.542,26.628,26.702,26.693,26.704,26.568,26.592,26.483,26.464]},"pretrend":{"gap":[0.002,0.054,-0.013,-0.043,-0.103,-0.139,-0.219,-0.12,1.848,1.967,1.805,1.836,1.946],"lo":[-0.141,-0.049,-0.115,-0.186,-0.304,-0.372,-0.483,-0.404,1.547,1.661,1.481,1.504,1.608],"hi":[0.144,0.157,0.09,0.099,0.097,0.093,0.045,0.164,2.15,2.273,2.129,2.168,2.284]},"placebo":{"gap":[0.036,0.102,0.084,0.051,-0.403,-0.807,-1.175,-1.262,0.63,0.573,0.3,0.259,0.304],"lo":[-0.343,-0.282,-0.294,-0.332,-0.784,-1.179,-1.546,-1.634,0.251,0.195,-0.082,-0.119,-0.071],"hi":[0.415,0.486,0.463,0.434,-0.023,-0.435,-0.803,-0.891,1.01,0.95,0.682,0.638,0.679]},"pretrend_z":1.6,"placebo_z":6.7,"flags":[false,true],"n_treated":1979,"n":10000},"c":{"truth":2.0,"means":{"treated":{"mean":[26.33,26.281,26.13,25.844,25.536,25.166,24.996,25.19,27.626,27.999,28.154,28.258,28.431],"lo":[26.041,25.99,25.838,25.557,25.253,24.89,24.721,24.914,27.338,27.712,27.859,27.961,28.138],"hi":[26.619,26.572,26.422,26.131,25.819,25.441,25.272,25.466,27.914,28.285,28.45,28.555,28.724]},"control":{"mean":[30.454,30.554,30.586,30.694,30.826,30.977,31.057,30.993,30.921,30.756,30.647,30.505,30.473],"lo":[30.307,30.406,30.438,30.547,30.679,30.833,30.914,30.849,30.774,30.608,30.498,30.357,30.325],"hi":[30.602,30.702,30.733,30.842,30.972,31.121,31.2,31.137,31.068,30.903,30.795,30.653,30.621]}},"cf":{"actual":[26.33,26.281,26.13,25.844,25.536,25.166,24.996,25.19,27.626,27.999,28.154,28.258,28.431],"true_y0":[26.33,26.281,26.13,25.844,25.536,25.166,24.996,25.19,25.626,25.999,26.154,26.258,26.431],"unconf_cf":[26.246,26.254,26.096,25.725,25.365,25.061,24.86,25.062,25.454,25.636,25.957,26.201,26.407],"did_cf":[24.457,24.612,24.705,24.858,25.002,25.213,25.362,25.309,25.185,24.926,24.85,24.699,24.648]},"pretrend":{"gap":[0.385,0.18,-0.063,-0.503,-0.955,-1.536,-1.854,-1.608,0.952,1.584,1.816,2.07,2.294],"lo":[0.236,0.077,-0.169,-0.651,-1.162,-1.776,-2.125,-1.896,0.643,1.266,1.478,1.726,1.945],"hi":[0.534,0.284,0.043,-0.355,-0.748,-1.296,-1.582,-1.32,1.261,1.903,2.154,2.414,2.644]},"placebo":{"gap":[0.025,0.041,0.104,0.069,-0.894,-1.93,-2.604,-2.575,-0.119,0.379,0.503,0.638,0.744],"lo":[-0.37,-0.355,-0.301,-0.339,-1.291,-2.318,-2.98,-2.949,-0.502,-0.008,0.104,0.238,0.353],"hi":[0.419,0.437,0.508,0.477,-0.496,-1.543,-2.228,-2.202,0.263,0.767,0.903,1.037,1.136]},"pretrend_z":13.4,"placebo_z":13.6,"flags":[true,true],"n_treated":2010,"n":10000,"hook":{"unconf":{"estimate":2.127,"ci_low":1.874,"ci_high":2.38},"did":{"estimate":3.064,"ci_low":2.832,"ci_high":3.296}},"balance":{"features":["y_m8","y_m7","y_m6","y_m5","y_m4","y_m3","y_m2","y_m1","slope","recent_change","x1","x2","x3","season_sin","season_cos"],"raw":[-0.618,-0.637,-0.665,-0.729,-0.804,-0.901,-0.944,-0.899,-0.316,-0.3,-0.697,0.286,-0.202,-0.148,0.027],"weighted":[0.013,0.004,0.005,0.018,0.026,0.016,0.021,0.02,0.014,0.013,-0.011,0.048,0.009,0.005,-0.008]}},"d":{"truth":2.0,"means":{"treated":{"mean":[24.721,24.622,24.456,24.204,24.018,23.764,23.751,23.908,26.227,26.526,26.615,26.791,26.948],"lo":[24.453,24.351,24.186,23.938,23.755,23.509,23.499,23.654,25.962,26.26,26.34,26.511,26.673],"hi":[24.989,24.893,24.726,24.47,24.28,24.019,24.004,24.163,26.492,26.792,26.891,27.071,27.224]},"control":{"mean":[30.87,30.983,31.019,31.119,31.22,31.343,31.383,31.328,31.285,31.138,31.045,30.885,30.857],"lo":[30.727,30.839,30.876,30.977,31.079,31.204,31.245,31.189,31.143,30.995,30.901,30.741,30.713],"hi":[31.013,31.126,31.161,31.261,31.361,31.482,31.522,31.468,31.428,31.281,31.189,31.028,31.0]}},"cf":{"actual":[24.721,24.622,24.456,24.204,24.018,23.764,23.751,23.908,26.227,26.526,26.615,26.791,26.948],"true_y0":[24.721,24.622,24.456,24.204,24.018,23.764,23.751,23.908,24.227,24.526,24.615,24.791,24.948],"unconf_cf":[24.683,24.499,24.354,24.077,23.863,23.614,23.606,23.84,24.475,24.793,25.163,25.489,25.746],"did_cf":[23.241,23.382,23.458,23.585,23.687,23.903,23.959,23.894,23.808,23.603,23.532,23.397,23.396]},"pretrend":{"gap":[0.396,0.156,-0.086,-0.466,-0.754,-1.224,-1.292,-1.07,1.335,1.839,1.999,2.31,2.468],"lo":[0.252,0.055,-0.189,-0.609,-0.957,-1.457,-1.557,-1.352,1.039,1.533,1.673,1.974,2.127],"hi":[0.54,0.257,0.017,-0.322,-0.551,-0.991,-1.028,-0.787,1.631,2.144,2.324,2.646,2.809]},"placebo":{"gap":[0.045,0.13,0.113,0.05,-1.148,-2.411,-2.985,-3.124,-0.891,-0.576,-0.573,-0.31,-0.275],"lo":[-0.412,-0.329,-0.346,-0.396,-1.591,-2.819,-3.391,-3.518,-1.284,-0.992,-0.991,-0.721,-0.681],"hi":[0.502,0.59,0.573,0.497,-0.705,-2.002,-2.58,-2.73,-0.498,-0.16,-0.155,0.102,0.131]},"pretrend_z":10.3,"placebo_z":15.5,"flags":[true,true],"n_treated":2024,"n":10000}},"mc":{"reps":{"a":200,"b":200,"c":200,"d":200},"methods":{"a":{"naive_unconf":{"mean":1.391,"q":[1.109,1.288,1.494,1.719],"bias":-0.609,"rmse":0.629,"coverage":0.035,"sd":0.156},"unconf":{"mean":2.007,"q":[1.805,1.951,2.066,2.196],"bias":0.007,"rmse":0.099,"coverage":0.935,"sd":0.1},"did":{"mean":2.003,"q":[1.762,1.916,2.078,2.236],"bias":0.003,"rmse":0.117,"coverage":0.93,"sd":0.117},"did_lags":{"mean":2.004,"q":[1.765,1.927,2.076,2.202],"bias":0.004,"rmse":0.109,"coverage":0.945,"sd":0.11}},"b":{"naive_unconf":{"mean":-1.812,"q":[-2.103,-1.922,-1.708,-1.52],"bias":-3.811,"rmse":3.815,"coverage":0.0,"sd":0.155},"unconf":{"mean":1.298,"q":[1.091,1.238,1.37,1.473],"bias":-0.702,"rmse":0.709,"coverage":0.0,"sd":0.099},"did":{"mean":2.001,"q":[1.758,1.933,2.078,2.199],"bias":0.001,"rmse":0.115,"coverage":0.94,"sd":0.116},"did_lags":{"mean":1.325,"q":[1.086,1.262,1.397,1.504],"bias":-0.675,"rmse":0.684,"coverage":0.0,"sd":0.11}},"c":{"naive_unconf":{"mean":-2.734,"q":[-2.987,-2.82,-2.65,-2.454],"bias":-4.734,"rmse":4.736,"coverage":0.0,"sd":0.147},"unconf":{"mean":1.985,"q":[1.768,1.903,2.055,2.219],"bias":-0.015,"rmse":0.116,"coverage":0.935,"sd":0.116},"did":{"mean":3.011,"q":[2.806,2.946,3.086,3.218],"bias":1.011,"rmse":1.016,"coverage":0.0,"sd":0.103},"did_lags":{"mean":2.235,"q":[2.022,2.155,2.323,2.449],"bias":0.235,"rmse":0.26,"coverage":0.495,"sd":0.111}},"d":{"naive_unconf":{"mean":-4.533,"q":[-4.749,-4.63,-4.445,-4.272],"bias":-6.533,"rmse":6.535,"coverage":0.0,"sd":0.134},"unconf":{"mean":1.27,"q":[0.98,1.181,1.364,1.524],"bias":-0.73,"rmse":0.743,"coverage":0.005,"sd":0.14},"did":{"mean":2.813,"q":[2.592,2.745,2.886,3.026],"bias":0.813,"rmse":0.82,"coverage":0.0,"sd":0.11},"did_lags":{"mean":1.61,"q":[1.364,1.527,1.695,1.822],"bias":-0.39,"rmse":0.41,"coverage":0.13,"sd":0.126}}},"rejection":{"a":{"did_placebo":0.04,"pretrend_gap":0.03,"unconf_placebo":0.03},"b":{"did_placebo":0.03,"pretrend_gap":0.03,"unconf_placebo":1.0},"c":{"did_placebo":1.0,"pretrend_gap":1.0,"unconf_placebo":1.0},"d":{"did_placebo":1.0,"pretrend_gap":1.0,"unconf_placebo":1.0}},"bracket_d":1.0}}/*DATA_END*/;
@@ -701,7 +590,7 @@ function ticks(lo, hi, n) {
 function pad(lo, hi, f) { const p = (hi - lo) * (f || 0.08) || 1; return [lo - p, hi + p]; }
 
 const COL = { treated: '#eb6834', control: '#2a78d6', aqua: '#1baf7a', ink: '#111827', muted: '#6b7280', grid: '#e5e7eb', raw: '#9ca3af' };
-const SC = { a: 'a. Observables only', b: 'b. Stable trait', c: 'c. Transitory dip', d: 'd. Both' };
+const SC = { a: 'a. Observables only', b: 'b. Time-invariant confounder', c: 'c. Transitory dip', d: 'd. Both' };
 const narrow = () => window.matchMedia('(max-width: 599px)').matches;
 const FS = () => narrow() ? { axis: 11, lab: 11.5, val: 11.5 } : { axis: 12.5, lab: 13, val: 13 };
 const ET = DATA.event_times || [];
@@ -783,11 +672,11 @@ function drawHook() {
   const h = get('single.c.hook');
   if (!h) return;
   const rows = [
-    { label: narrow() ? 'A (unconf.)' : 'Analyst A: unconfoundedness', mid: h.unconf.estimate, lo: h.unconf.ci_low, hi: h.unconf.ci_high, color: COL.control },
-    { label: narrow() ? 'B (DiD)' : 'Analyst B: DiD', mid: h.did.estimate, lo: h.did.ci_low, hi: h.did.ci_high, color: COL.aqua },
+    { label: narrow() ? 'Lagged-outcome' : 'Lagged-outcome regression', mid: h.unconf.estimate, lo: h.unconf.ci_low, hi: h.unconf.ci_high, color: COL.control },
+    { label: 'DiD', mid: h.did.estimate, lo: h.did.ci_low, hi: h.did.ci_high, color: COL.aqua },
   ];
   intervalChart(document.getElementById('chartHook'), {
-    W: widthOf(), rows, rowH: 46, ml: narrow() ? 90 : 200, domain: [1.5, 3.5], values: true,
+    W: widthOf(), rows, rowH: 46, ml: narrow() ? 112 : 200, domain: [1.5, 3.5], values: true,
     truth: get('single.c.truth'),
   });
 }
@@ -839,8 +728,8 @@ function drawMeans() {
 
 const CF_SUB = {
   a: 'Both designs track the truth',
-  b: 'DiD tracks the truth; unconfoundedness sits too high',
-  c: 'Unconfoundedness tracks the recovery; DiD stays low',
+  b: 'DiD tracks the truth; lagged-outcome sits too high',
+  c: 'Lagged-outcome tracks the recovery; DiD stays low',
   d: 'The truth sits between the two',
 };
 function drawCF() {
@@ -857,7 +746,7 @@ function drawLags() {
   const svg = document.getElementById('chartLags');
   if (!mc) return;
   clear(svg);
-  const W = widthOf(), fs = FS(), rowH = 40, m = { l: narrow() ? 92 : 150, r: 18, t: 8, b: 36 };
+  const W = widthOf(), fs = FS(), rowH = 40, m = { l: narrow() ? 92 : 215, r: 18, t: 8, b: 36 };
   const scen = Object.keys(mc), H = m.t + m.b + rowH * scen.length;
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
   const keys = [['unconf', COL.control], ['did', COL.aqua], ['did_lags', COL.ink]];
@@ -923,15 +812,16 @@ function gapPanels(id, key, zkey) {
   }
 }
 
-function mcPanels() {
+function mcPanels(id, keys) {
   const mc = get('mc.methods');
-  const box = document.getElementById('panelsMC');
+  const box = document.getElementById(id);
+  if (!box) return;
   box.innerHTML = '';
   if (!mc) { box.textContent = 'Monte Carlo results not yet generated.'; return; }
   const all = Object.values(mc).flatMap(s => ['unconf', 'did', 'did_lags'].flatMap(k => s[k].q));
   const domain = pad(Math.min(...all, 2), Math.max(...all, 2), 0.04);
-  const labels = { naive_unconf: 'Naive', unconf: 'Unconfoundedness', did: 'DiD', did_lags: 'DiD with lags' };
-  const short = { naive_unconf: 'Naive', unconf: 'Unconf.', did: 'DiD', did_lags: 'DiD + lags' };
+  const labels = { naive_unconf: 'Naive', unconf: 'Lagged-outcome', did: 'DiD', did_lags: 'DiD with lags' };
+  const short = { naive_unconf: 'Naive', unconf: 'Lagged-outcome', did: 'DiD', did_lags: 'DiD + lags' };
   const colors = { naive_unconf: COL.raw, unconf: COL.control, did: COL.aqua, did_lags: COL.ink };
   for (const s of Object.keys(mc)) {
     const div = document.createElement('div');
@@ -940,10 +830,10 @@ function mcPanels() {
     svg.setAttribute('class', 'chart');
     div.appendChild(svg);
     box.appendChild(div);
-    const rows = ['unconf', 'did', 'did_lags'].map(k => ({
+    const rows = keys.map(k => ({
       label: narrow() ? labels[k] : short[k], mid: mc[s][k].mean, lo: mc[s][k].q[0], hi: mc[s][k].q[3], q: [mc[s][k].q[1], mc[s][k].q[2]], color: colors[k],
     }));
-    intervalChart(svg, { W: 340, rows, rowH: 30, ml: narrow() ? 120 : 80, domain, truth: 2.0, fs: { axis: 11, lab: 11.5, val: 11 } });
+    intervalChart(svg, { W: 340, rows, rowH: 30, ml: 112, domain, truth: 2.0, fs: { axis: 11, lab: 11.5, val: 11 } });
   }
 }
 
@@ -963,8 +853,8 @@ function fillTables() {
   }
   const rj = get('mc.rejection');
   const tr = document.getElementById('tableReject');
-  if (rj) {
-    let h = tr.querySelector('caption').outerHTML + '<thead><tr><th>Scenario</th><th class="num">DiD pre-trend check</th><th class="num">DiD placebo (DML)</th><th class="num">Unconf. placebo (DML)</th></tr></thead><tbody>';
+  if (rj && tr) {
+    let h = tr.querySelector('caption').outerHTML + '<thead><tr><th>Scenario</th><th class="num">DiD pre-trend check</th><th class="num">DiD placebo (DML)</th><th class="num">Lagged-outcome placebo (DML)</th></tr></thead><tbody>';
     for (const s of Object.keys(rj)) {
       const r = rj[s];
       h += `<tr><td>${SC[s]}</td><td class="num">${fmt(r.pretrend_gap, 'pct')}</td><td class="num">${fmt(r.did_placebo, 'pct')}</td><td class="num">${fmt(r.unconf_placebo, 'pct')}</td></tr>`;
@@ -973,7 +863,7 @@ function fillTables() {
   }
   const td = document.getElementById('tableDiagnose');
   if (!td) return;
-  const rd = { 'false,false': 'Either design', 'false,true': 'DiD', 'true,false': 'Unconfoundedness, DiD as bound', 'true,true': 'Unconfoundedness, DiD as bound' };
+  const rd = { 'false,false': 'Either design', 'false,true': 'DiD', 'true,false': 'Lagged-outcome, DiD as bound', 'true,true': 'Lagged-outcome, DiD as bound' };
   let h = td.querySelector('caption').outerHTML + '<thead><tr><th>Scenario</th><th>Pre-trend check</th><th>Placebo</th><th>Reading</th></tr></thead><tbody>';
   for (const s of 'abcd') {
     const d = get(`single.${s}`);
@@ -988,10 +878,10 @@ function fillValues() {
 }
 
 function drawAll() {
-  drawMeans(); drawCF(); drawLags(); drawBalance();
+  drawMeans(); drawCF(); drawBalance();
   gapPanels('panelsPretrend', 'pretrend', 'pretrend_z');
-  gapPanels('panelsPlacebo', 'placebo', 'placebo_z');
-  mcPanels();
+  mcPanels('panelsMC', ['unconf', 'did']);
+  mcPanels('panelsLags', ['unconf', 'did', 'did_lags']);
 }
 
 // ── Nav highlight ────────────────────────────────────────────────────────
