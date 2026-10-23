@@ -309,11 +309,11 @@ footer { max-width: var(--w); margin: 0 auto; padding: 1.5rem; border-top: 1px s
   <p>Here D is the treatment, τ the effect and X the observed covariates. τ is the treated–control gap after adjusting for Y<sub>pre</sub> and X.</p>
 
   <ul class="pts">
-    <li><strong>Difference-in-differences fixes β = 1.</strong> Moving Y<sub>pre</sub> to the left-hand side gives a regression of each user's change on D. Anything constant within a user cancels out, and τ is the difference in average change between treated and control.</li>
-    <li><strong>Lagged-outcome regression lets the data estimate β.</strong> If part of a user's pre-period engagement is a temporary shock that fades, such as a busy week or a holiday, β is below 1: only part of an unusually low pre-period carries into the post-period, and the rest recovers on its own.</li>
+    <li><strong>Difference-in-differences sets β = 1.</strong> Subtract Y<sub>pre</sub> from both sides and τ becomes the treated–control difference in each user's change. This treats every pre-period gap as permanent: whatever separated the groups before treatment carries into the post-period in full.</li>
+    <li><strong>Lagged-outcome regression estimates β.</strong> Pre-period engagement mixes a lasting level with temporary shocks that fade, such as a busy week or a holiday, so the estimate lands below 1. This treats part of every pre-period gap as temporary: a group that started low is expected to recover partly on its own.</li>
   </ul>
 
-  <p>Each design is biased when its β is wrong. That happens in two common situations.</p>
+  <p>Each design is biased when the gap between the groups is not the kind it assumes. That happens in two common situations.</p>
 </section>
 
 <!-- 2 -->
@@ -331,7 +331,6 @@ footer { max-width: var(--w); margin: 0 auto; padding: 1.5rem; border-top: 1px s
   <p>Users often opt in when something has just changed. Take a win-back campaign: users whose activity has slipped are offered a free trial of a premium tier, and the ones who accept are disproportionately in a temporary slump. Many of them would have bounced back anyway. <a href="https://www.jstor.org/stable/1924332" target="_blank" rel="noopener">Ashenfelter (1978)</a> found the same pattern in job training: trainees' earnings fall just before they enrol and recover afterwards, whether the training worked or not.</p>
 
   <p>DiD subtracts each user's pre-period, and its covariates are measured before it, so nothing in the design accounts for the dip. The pre-period is depressed, and the recovery is counted as part of the effect. A dip that hits treated and control users alike, such as a holiday week, is not a problem, because the control change absorbs it. Lagged-outcome regression conditions on the dip itself: it compares dipped treated users with controls who dipped the same way.</p>
-
 
   <p>To measure these biases we need data where the true effect is known, so the next section simulates it.</p>
 </section>
@@ -431,9 +430,7 @@ footer { max-width: var(--w); margin: 0 auto; padding: 1.5rem; border-top: 1px s
 <section id="covariates">
   <h2>4. Can past engagement fix DiD?</h2>
 
-  <p>A common instinct is to give the DiD more information about each user's history: their engagement in weeks -8 to -5, the four weeks before the baseline window. <a href="https://pubmed.ncbi.nlm.nih.gov/29957834/" target="_blank" rel="noopener">Daw and Hatfield (2018)</a> showed this can backfire. When treated and control groups differ in level, matching them on past outcomes pairs each treated user with controls whose outcomes were temporarily unusual, and those controls then regress to their own mean. This is the same problem as failure mode 1.</p>
-
-  <p>To measure the cost, the study includes a third design, DiD + pre-baseline engagement: the DiD from above with those four weeks added as covariates. These weeks come before DiD's baseline window, so the bias comes from using outcomes, whatever their timing.</p>
+  <p>A common instinct is to give DiD more of each user's history by adding their engagement in weeks -8 to -5, before the baseline window, as covariates. <a href="https://pubmed.ncbi.nlm.nih.gov/29957834/" target="_blank" rel="noopener">Daw and Hatfield (2018)</a> showed this can backfire: when the groups differ in level, matching on past outcomes pairs treated users with controls whose engagement was temporarily unusual, and those controls drift back towards their own mean. The study measures the cost with a third design, DiD + pre-baseline engagement.</p>
 
   <div class="fig">
     <div class="fig-hdr">
@@ -450,7 +447,7 @@ footer { max-width: var(--w); margin: 0 auto; padding: 1.5rem; border-top: 1px s
     <li><strong>Scenario d:</strong> it lands at <span data-v="mc.methods.d.did_lags.bias" data-f="s2">−0.39</span>, against <span data-v="mc.methods.d.unconf.bias" data-f="s2">−0.73</span> for lagged-outcome regression and <span data-v="mc.methods.d.did.bias" data-f="s2">+0.81</span> for plain DiD.</li>
   </ul>
 
-  <p>Pre-baseline engagement helps DiD in c and d, the two scenarios where parallel trends fails, because it carries part of the dip. But it does not remove the bias, and those are exactly the cases where the pre-trend check below flags and the decision rule sends you to lagged-outcome regression instead, which handles the dip fully. In d it happens to land closest to the truth, because its bias from the dip and its bias from the confounder partly cancel. Nothing tells you in advance that they will. Where the pre-trend is flat and DiD is the right design, it can only hurt.</p>
+  <p>So it only helps where parallel trends already fails, and there the pre-trend check sends you to lagged-outcome regression, which handles the dip fully. Its result in d is closest to the truth only because two biases happen to partly cancel. Where the pre-trend is flat and DiD is the right design, it can only hurt.</p>
 
   <p>That gives one covariate rule per design:</p>
 
@@ -496,11 +493,6 @@ footer { max-width: var(--w); margin: 0 auto; padding: 1.5rem; border-top: 1px s
 <section id="rule">
   <h2>6. The decision rule</h2>
 
-  <ul class="pts">
-    <li><strong>Flat pre-trend → DiD.</strong> It copes with a time-invariant confounder, which lagged-outcome regression cannot.</li>
-    <li><strong>Pre-trend dips → lagged-outcome regression, with DiD as the other bound.</strong> The dip rules out DiD, but nothing in the pre-period rules out a time-invariant confounder as well.</li>
-  </ul>
-
   <div class="rulebox">
     <table class="dtable rule">
       <thead><tr><th>Pre-trend check</th><th>DiD</th><th>Lagged-outcome regression</th><th>Report</th></tr></thead>
@@ -513,16 +505,16 @@ footer { max-width: var(--w); margin: 0 auto; padding: 1.5rem; border-top: 1px s
 
   <p>A failed check rules out this DiD, not every DiD. If the dip is short, a pre-period that ends before it can still work, and sensitivity methods such as <a href="https://restud.com/a-more-credible-approach-to-parallel-trends" target="_blank" rel="noopener">Rambachan and Roth (2023)</a> show how far the estimate moves if parallel trends is violated by a bounded amount.</p>
 
-  <p>Why do the two estimates work as bounds? The treated users start below the controls. DiD assumes that gap would have persisted in full (β = 1). Lagged-outcome regression assumes part of it would have closed on its own (β &lt; 1), so it gives the smaller estimate. If parallel trends holds, DiD is right and the lagged estimate is too low. If unconfoundedness holds, the lagged estimate is right and DiD is too high. Either way the truth lies between them (<a href="https://arxiv.org/abs/1903.06286" target="_blank" rel="noopener">Ding and Li 2019</a>, building on Angrist and Pischke 2009). If the treated users had started above the controls, the order would flip.</p>
-
-  <p>This needs two things: one of the assumptions must hold, and gaps between users must not widen on their own over time (Ding and Li's stationarity condition). Scenario d breaks the first. The truth still fell between the estimates in <span data-v="mc.bracket_d" data-f="pct">100%</span> of replications, but that is this simulation, not a guarantee.</p>
-
-  <p>In practice, report both. If they lead to the same decision, the choice of design doesn't matter. If they straddle zero or your decision threshold, the data can't settle it.</p>
+  <p>In practice, report both. When the check dips, DiD is still worth reporting, because the two estimates bound the truth (<a href="#faq-bounds">see the FAQ</a>). If they lead to the same decision, the choice of design doesn't matter. If they straddle zero or your decision threshold, the data can't settle it.</p>
 </section>
 
 <!-- FAQ -->
 <section id="faq">
   <h2>Frequently asked questions</h2>
+
+  <details class="faq" id="faq-bounds"><summary>Why do the two estimates bound the truth?</summary>
+<p>The treated users start below the controls: DiD assumes the whole gap persists, lagged-outcome regression that part of it closes, so DiD gives the larger estimate. If either assumption holds, the truth lies between them, provided gaps between users do not widen on their own over time (<a href="https://arxiv.org/abs/1903.06286" target="_blank" rel="noopener">Ding and Li 2019</a>, building on Angrist and Pischke 2009). If the treated users started above the controls, the order would flip. In scenario d neither assumption holds, and the truth still fell between the estimates in <span data-v="mc.bracket_d" data-f="pct">100%</span> of replications, but that is this simulation, not a guarantee.</p>
+</details>
 
   <details class="faq"><summary>Can I use DiD when the outcome is churn?</summary>
     <p>Not directly. Churn is absorbing, and a user has to be active to be offered a feature, so pre-period churn is zero for everyone in the analysis. That causes three problems. There is no pre-trend to check. Subtracting zero from both groups leaves the naive comparison of post-period churn. And the sample is filtered on survival, which can treat the groups differently if opting in depends on recent engagement.</p>
