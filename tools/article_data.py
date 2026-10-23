@@ -146,6 +146,14 @@ def monte_carlo():
             }
     rr = rejection_rates(mc)
     out["rejection"] = {s: {k: r(v) for k, v in rr.loc[s].items()} for s in rr.index}
+    # Mean over weeks -4 to -1 (truth 0) for the two pre-period checks.
+    out["window_mean"] = {
+        m: {
+            s: r(g["estimate"].mean())
+            for s, g in mc[mc["method"] == m].groupby("scenario")
+        }
+        for m in ("pretrend_gap", "unconf_placebo")
+    }
     d = est[est["scenario"] == "d"]
     if not d.empty:
         p = d.pivot(index="rep", columns="method", values="estimate")
